@@ -13,6 +13,8 @@ pub mod integrity;
 pub mod journal;
 pub mod keys;
 pub mod manifest;
+pub mod quic;
+mod quic_tls;
 pub mod safe_path;
 pub mod session;
 pub mod tcp;
