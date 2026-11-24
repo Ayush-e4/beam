@@ -32,7 +32,8 @@
 - **QUIC TLS:** QUIC's mandatory TLS 1.3 uses a throwaway self-signed certificate per endpoint
   and clients accept any certificate. This is deliberate: identity and end-to-end encryption
   come from the Noise handshake inside the stream, never from the transport.
-- **Bulk encryption:** AES-256-GCM with hardware acceleration; ChaCha20-Poly1305 fallback.
+- **Bulk encryption:** AES-256-GCM with hardware acceleration; ChaCha20-Poly1305 fallback. The
+  device showing the pairing QR code picks one and puts it in the code.
 - **Integrity:** BLAKE3 per chunk plus whole-file root hash.
 - Only well-maintained, audited libraries; no custom crypto primitives.
 
