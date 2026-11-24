@@ -97,6 +97,28 @@ version error. Capabilities in `HELLO` negotiate features (compression, packing,
   (see `beam-core/src/safe_path.rs` and `manifest.rs`).
 - The manifest carries **no file hashes**, so the sender can start streaming immediately
   instead of reading every file twice.
+- Encoded as `version | transfer_id | total_size | count | items` (little-endian; each item
+  has its ID, size, chunk size, optional modified time, UTF-8 path and MIME type). Large
+  manifests span several `OFFER` frames of 1 MiB; a flag marks the last piece, and the
+  receiver caps the total at 64 MiB before validating it as a whole. Item ID `u32::MAX` is
+  reserved for the small-file pack stream.
+
+### Transfer messages
+
+One transfer runs per connection at a time. All integers are little-endian; a range is
+`item_id u32 | start u64 | end u64` (chunk indices, end exclusive).
+
+| Frame    | Payload                                                                               |
+| -------- | ------------------------------------------------------------------------------------- |
+| `ACCEPT` | `transfer_id` · count · item IDs (count 0 = every item)                               |
+| `REJECT` | `transfer_id` · reason (declined, no space, busy, failed)                             |
+| `RESUME` | `transfer_id` · count · ranges the receiver already verified                          |
+| `ACK`    | count · ranges newly verified                                                         |
+| `CANCEL` | `transfer_id` · reason                                                                |
+| `CHUNK`  | item ID · chunk index · encoding · decoded length · chunk hash · optional root · body |
+
+Decoders reject truncated payloads, trailing bytes, unknown values and empty or reversed
+ranges, and bound every count by the payload size.
 
 ### Integrity
 

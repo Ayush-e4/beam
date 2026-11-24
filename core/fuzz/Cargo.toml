@@ -65,3 +65,17 @@ path = "fuzz_targets/journal_open.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "offer"
+path = "fuzz_targets/offer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "transfer_messages"
+path = "fuzz_targets/transfer_messages.rs"
+test = false
+doc = false
+bench = false

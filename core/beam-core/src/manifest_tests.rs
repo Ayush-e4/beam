@@ -50,6 +50,12 @@ fn rejects_duplicate_ids() {
 }
 
 #[test]
+fn rejects_the_reserved_pack_item_id() {
+    let items = vec![item(crate::manifest::PACK_ITEM_ID, "a", 1)];
+    assert!(is_malformed(&Manifest::new(ID, items, 1)));
+}
+
+#[test]
 fn rejects_paths_that_collide_ignoring_case() {
     let items = vec![item(1, "Docs/Report.pdf", 1), item(2, "docs/report.PDF", 1)];
     assert!(is_malformed(&Manifest::new(ID, items, 2)));

@@ -30,6 +30,8 @@ jobs:
           - unpack
           - decode_chunk
           - journal_open
+          - offer
+          - transfer_messages
     defaults:
       run:
         working-directory: core/fuzz
