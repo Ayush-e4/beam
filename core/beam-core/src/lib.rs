@@ -14,6 +14,8 @@ pub mod integrity;
 pub mod journal;
 pub mod keys;
 pub mod manifest;
+pub mod messages;
+pub mod offer;
 pub mod pack;
 pub mod quic;
 mod quic_tls;
@@ -22,6 +24,7 @@ pub mod session;
 pub mod tcp;
 pub mod verification;
 pub mod version;
+mod wire;
 
 pub use chunk_set::ChunkSet;
 pub use connection::Connection;

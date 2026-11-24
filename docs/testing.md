@@ -10,9 +10,9 @@ to `master` unless all checks pass.
 - **Unit tests** for every module (framing, manifest, chunking, hashing, packing, resume journal).
 - **Property-based tests** (`proptest`) for round-trips: pack → unpack, frame → parse.
 - **Fuzzing** (`cargo-fuzz`, in `core/fuzz`): frame decoding, path sanitising, encrypted
-  session records, handshake messages, the pack format, zstd chunk decoding and the resume
-  journal. The manifest parser joins once `OFFER` has a wire encoding. Run locally with
-  `cargo +nightly fuzz run <target>`.
+  session records, handshake messages, offered manifests, transfer messages (accept, reject,
+  resume, ack, chunk headers), the pack format, zstd chunk decoding and the resume journal.
+  Run locally with `cargo +nightly fuzz run <target>`.
 - **Loopback integration tests:** two in-process peers over QUIC and TCP, with injected packet
   loss, latency and disconnects.
 - `clippy` with warnings as errors; `rustfmt` check.

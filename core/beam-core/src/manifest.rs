@@ -22,6 +22,9 @@ const FINGERPRINT_CONTEXT: &str = "beam 2026-11 manifest fingerprint v1";
 /// Most items accepted in a single transfer.
 pub const MAX_ITEMS: usize = 1_000_000;
 
+/// Item ID reserved for the small-file pack stream; no manifest item may use it.
+pub const PACK_ITEM_ID: u32 = u32::MAX;
+
 /// Unique identifier of a transfer, chosen by the sender.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TransferId(pub [u8; 16]);
@@ -90,6 +93,9 @@ impl Manifest {
         for item in &items {
             if !(MIN_CHUNK_SIZE..=MAX_CHUNK_SIZE).contains(&item.chunk_size) {
                 return malformed("item has an invalid chunk size");
+            }
+            if item.item_id == PACK_ITEM_ID {
+                return malformed("item id is reserved for the pack stream");
             }
             if !ids.insert(item.item_id) {
                 return malformed("manifest has a duplicate item id");
