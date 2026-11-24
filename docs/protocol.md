@@ -51,6 +51,12 @@ After the handshake, all messages are framed and encrypted with session keys:
 Frame = { type: u8, stream_id: u32, length: u32, payload: [u8] }
 ```
 
+Encoded frames form a plaintext stream that is cut into encrypted records of at most 65 535
+bytes (`length: u16 BE`, then ciphertext with a 16-byte tag). Nonces are implicit counters, so a
+dropped, replayed, reordered or altered record fails authentication and ends the session; the
+transfer then resumes from the journal on a new connection. Each direction rekeys every 2^20
+records.
+
 | Type                | Purpose                                                |
 | ------------------- | ------------------------------------------------------ |
 | `HELLO`             | Protocol version, capabilities, device info            |

@@ -75,6 +75,14 @@ pub enum BeamError {
     #[error("peer key does not match the expected device")]
     UnexpectedPeerKey,
 
+    /// An encrypted record failed authentication: it was altered, replayed, reordered or lost.
+    #[error("encrypted record rejected")]
+    RecordRejected,
+
+    /// The session failed earlier and can no longer be used; reconnect to continue.
+    #[error("session is broken; reconnect to continue")]
+    SessionBroken,
+
     /// The operation was cancelled.
     #[error("operation cancelled")]
     Cancelled,
@@ -89,9 +97,11 @@ impl BeamError {
                 ErrorCategory::Protocol
             }
             Self::Io { category, .. } => *category,
-            Self::IntegrityMismatch { .. } | Self::Handshake(_) | Self::UnexpectedPeerKey => {
-                ErrorCategory::Crypto
-            }
+            Self::IntegrityMismatch { .. }
+            | Self::Handshake(_)
+            | Self::UnexpectedPeerKey
+            | Self::RecordRejected
+            | Self::SessionBroken => ErrorCategory::Crypto,
             Self::Cancelled => ErrorCategory::Cancelled,
         }
     }

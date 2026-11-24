@@ -235,7 +235,6 @@ impl Established {
     }
 
     /// Hands the session keys to the encrypted session layer.
-    #[cfg_attr(not(test), expect(dead_code, reason = "used by the session layer"))]
     pub(crate) fn into_transport(self) -> TransportState {
         self.transport
     }

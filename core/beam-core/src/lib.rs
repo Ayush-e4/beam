@@ -13,6 +13,7 @@ pub mod journal;
 pub mod keys;
 pub mod manifest;
 pub mod safe_path;
+pub mod session;
 pub mod verification;
 pub mod version;
 
@@ -25,5 +26,6 @@ pub use journal::Journal;
 pub use keys::{PublicKey, StaticKeypair};
 pub use manifest::{Manifest, ManifestItem, TransferId};
 pub use safe_path::SafePath;
+pub use session::Session;
 pub use verification::VerificationCode;
 pub use version::ProtocolVersion;
