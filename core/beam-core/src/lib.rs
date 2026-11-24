@@ -5,6 +5,7 @@
 //! through thin bindings.
 
 pub mod chunk_set;
+pub mod compress;
 pub mod connection;
 pub mod error;
 pub mod frame;

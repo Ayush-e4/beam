@@ -119,6 +119,13 @@ headers) so the cost per file is close to zero.
 Optional zstd per chunk, used only when sampling shows the data is compressible. Already
 compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
 
+- Per file: skipped by MIME type, otherwise the first 64 KiB is test-compressed and must shrink
+  by at least 10%.
+- Per chunk: zstd level 1; a chunk that would not shrink by 10% is sent raw. Each chunk carries
+  its encoding (`0` raw, `1` zstd).
+- Chunk hashes cover the original bytes. The receiver decompresses into at most the chunk's
+  declared size (no decompression bombs), then verifies.
+
 ### Resume
 
 - The receiver keeps a small journal of verified ranges per transfer.
