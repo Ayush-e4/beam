@@ -88,6 +88,6 @@ platform**. There is no fixed deadline; quality and reliability come first.
 | Accounts | None in v1; pairing by QR only |
 | Relay (TURN) | Free with a monthly data cap, unlimited on Pro |
 | LocalSend compatibility | v1.1 |
-| Web app framework | Svelte (smallest, fastest load) |
+| Web app framework | React (Vite, static PWA); shares a design system with the website |
 | Marketing website | Next.js with GSAP and anime.js for animations |
 | Name | "Beam" is a codename; public name chosen before launch |
