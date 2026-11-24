@@ -25,7 +25,10 @@
 ## Cryptography
 
 - **Key agreement:** X25519. **Signatures:** Ed25519.
-- **Handshake:** Noise (XX pattern for first pairing, IK for known devices).
+- **Handshake:** Noise (XX pattern for first pairing, IK for known devices), implemented with
+  the `snow` library: `Noise_XX_25519_AESGCM_BLAKE2s` / `Noise_IK_25519_AESGCM_BLAKE2s`, or the
+  `ChaChaPoly` variants. Pairing binds the one-time token and the phone key from the QR code into
+  the prologue; the scanner rejects any other phone key as soon as it arrives.
 - **Bulk encryption:** AES-256-GCM with hardware acceleration; ChaCha20-Poly1305 fallback.
 - **Integrity:** BLAKE3 per chunk plus whole-file root hash.
 - Only well-maintained, audited libraries; no custom crypto primitives.
