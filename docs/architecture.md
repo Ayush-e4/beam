@@ -15,7 +15,7 @@
 └──────────────────────────────────────────────────────┘
         ▲ QUIC/TCP (LAN, direct Wi-Fi, USB)      ▲ WebTransport / WebRTC
         ▼                                        ▼
-  Another Android phone              Web app (Svelte PWA) in any browser
+  Another Android phone              Web app (React PWA) in any browser
                                                  ▲
                                                  │ signaling only (no file data)
                                                  ▼
@@ -48,7 +48,7 @@ Shared engine, compiled for Android now and desktop later.
 Google's libwebrtc for browsers that lack WebTransport. Data channels carry the same framed
 protocol as the native transports, so the session logic stays in `beam-core`.
 
-### Web app (`web/`, Svelte PWA)
+### Web app (`web/`, React PWA)
 - Served over HTTPS from our domain so it is installable and gets full browser APIs.
 - Connects to the phone directly: **WebTransport** first (certificate pinned by hash from the
   QR code), **WebRTC** data channels as fallback.
@@ -56,7 +56,8 @@ protocol as the native transports, so the session logic stays in `beam-core`.
   service-worker downloads on Safari/Firefox).
 - Clipboard via the Async Clipboard API (works while the tab is focused).
 - Web Share Target so the installed PWA appears in the desktop share menu.
-- Animations with Svelte transitions and GSAP.
+- Built with Vite + React as a static PWA (no server rendering needed).
+- Animations with GSAP (official React hooks) and anime.js, shared with the website.
 
 ### Website (`site/`, Next.js)
 Marketing site: landing page, features, live benchmarks, downloads. Next.js for SEO and
@@ -86,8 +87,9 @@ end-to-end encrypted. Free tier has a monthly cap; unlimited on Pro.
 ```
 android/   Android app (Gradle, Kotlin)
 core/      beam-core Rust workspace
-web/       Svelte PWA
+web/       React PWA (Vite)
 site/      Next.js marketing website
+packages/  Shared React UI: design system, animation helpers
 signal/    Cloudflare Workers signaling service
 docs/      Planning and design documents
 tools/     Benchmarks, test harnesses, scripts
