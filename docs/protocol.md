@@ -114,6 +114,16 @@ version error. Capabilities in `HELLO` negotiate features (compression, packing,
 Many small files are **packed** into a continuous stream (a tar-like container with per-entry
 headers) so the cost per file is close to zero.
 
+```
+entry : item_id u32 LE | length u32 LE | file bytes | chunk hash (32)
+```
+
+- A file is packed when it is at most 256 KiB and fits in one chunk of its own layout, so its
+  entry is exactly chunk 0 of the normal scheme (same chunk hash, root hash and journal record).
+- The pack stream is cut into `CHUNK` frames on its own stream and compressed like other data.
+- The receiver checks every entry against the manifest (known, packable, right size, received
+  once) and verifies its hash before writing; files already in the journal are not expected.
+
 ### Compression
 
 Optional zstd per chunk, used only when sampling shows the data is compressible. Already
