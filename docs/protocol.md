@@ -72,21 +72,36 @@ version error. Capabilities in `HELLO` negotiate features (compression, packing,
 ### Manifest (`OFFER`)
 
 ```
-{ transfer_id, items: [ { item_id, name, relative_path, size, mime, modified_at,
-                          chunk_size, root_hash } ], total_size }
+{ transfer_id, items: [ { item_id, relative_path, size, mime, modified_at, chunk_size } ],
+  total_size }
 ```
 
-- Files are split into fixed-size chunks (default 4 MiB, tuned by benchmarks).
-- `root_hash` is the BLAKE3 hash of the whole file; each chunk is verified against BLAKE3
-  tree hashes so corruption is detected per chunk.
+- Files are split into fixed-size chunks (default 4 MiB, tuned by benchmarks; 64 KiB–16 MiB).
+- Paths are sanitized and the manifest is validated as a whole before anything is written
+  (see `beam-core/src/safe_path.rs` and `manifest.rs`).
+- The manifest carries **no file hashes**, so the sender can start streaming immediately
+  instead of reading every file twice.
+
+### Integrity
+
+- **Chunk hash:** BLAKE3 in key-derivation mode with context `beam 2026-11 chunk hash v1`
+  over the chunk bytes.
+- **Root hash:** BLAKE3 with context `beam 2026-11 root hash v1` over
+  `size (u64 LE) || chunk_size (u32 LE) || chunk_hash_0 || chunk_hash_1 || ...`.
+- Each `CHUNK` frame carries its chunk hash; the receiver verifies the length and hash before
+  writing, so a corrupted or tampered chunk is rejected immediately.
+- The last chunk of an item also carries the item's root hash. The receiver recomputes the root
+  from the chunk hashes it verified and compares them, confirming the whole file in one step.
+- Separate contexts mean a chunk hash can never be mistaken for a root hash.
 
 ### Data flow
 
-- Chunks are sent over multiple parallel streams; each chunk carries `item_id` and offset.
-- The receiver writes chunks to a pre-allocated file at the right offset, verifies the hash,
+- Chunks are sent over multiple parallel streams; each chunk carries `item_id`, chunk index
+  and chunk hash.
+- The receiver writes chunks to a pre-allocated file at the right offset after verifying them,
   and acknowledges verified ranges.
-- A transfer completes when every chunk of every item is verified; then the file is moved
-  into its final location atomically.
+- A transfer completes when every chunk of every item is verified and every root hash matches;
+  then the file is moved into its final location atomically.
 
 ### Small files
 
