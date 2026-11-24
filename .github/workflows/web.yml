@@ -1,0 +1,40 @@
+name: Web (React, Next.js, Worker)
+
+on:
+  pull_request:
+    paths-ignore: ['android/**', 'core/**', 'docs/**', '*.md']
+  push:
+    branches: [master]
+    paths-ignore: ['android/**', 'core/**', 'docs/**', '*.md']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      WRANGLER_SEND_METRICS: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Format
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
