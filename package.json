@@ -6,6 +6,7 @@
     "node": ">=26.13.1"
   },
   "workspaces": [
+    "packages/*",
     "web",
     "site",
     "signal"
