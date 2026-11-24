@@ -18,5 +18,10 @@ export default tseslint.config(
       'max-lines': ['error', { max: 300, skipBlankLines: false, skipComments: false }],
     },
   },
+  {
+    // Config files are plain JavaScript and are not part of any tsconfig project.
+    files: ['**/*.js'],
+    ...tseslint.configs.disableTypeChecked,
+  },
   prettier,
 );
