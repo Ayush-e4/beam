@@ -11,7 +11,6 @@ fn item(item_id: u32, path: &str, size: u64) -> ManifestItem {
         mime: "application/octet-stream".into(),
         modified_at_ms: None,
         chunk_size: 4 * 1024 * 1024,
-        root_hash: [0; 32],
     }
 }
 
@@ -81,11 +80,10 @@ fn rejects_sizes_that_overflow() {
 }
 
 #[test]
-fn counts_chunks_rounding_up() {
-    let mut file = item(1, "a", 0);
-    assert_eq!(file.chunk_count(), 0);
-    file.size = 1;
-    assert_eq!(file.chunk_count(), 1);
-    file.size = u64::from(file.chunk_size) * 3 + 1;
-    assert_eq!(file.chunk_count(), 4);
+fn items_expose_their_chunk_layout() {
+    let file = item(1, "a", u64::from(MIN_CHUNK_SIZE) * 3 + 1);
+    let mut small = file.clone();
+    small.chunk_size = MIN_CHUNK_SIZE;
+    assert_eq!(small.layout().expect("valid").chunk_count(), 4);
+    assert_eq!(file.layout().expect("valid").chunk_count(), 1);
 }

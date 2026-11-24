@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 
+use crate::integrity::ChunkLayout;
 use crate::safe_path::SafePath;
 use crate::{BeamError, Result};
 
@@ -36,17 +37,20 @@ pub struct ManifestItem {
     pub mime: String,
     /// Last-modified time in milliseconds since the Unix epoch, if known.
     pub modified_at_ms: Option<i64>,
-    /// Chunk size used for this file.
+    /// Chunk size used for this file. The item's root hash is sent with its last chunk, so
+    /// the sender can start streaming without reading the file twice.
     pub chunk_size: u32,
-    /// BLAKE3 hash of the whole file.
-    pub root_hash: [u8; 32],
 }
 
 impl ManifestItem {
-    /// Number of chunks the file is split into (0 for an empty file).
-    #[must_use]
-    pub fn chunk_count(&self) -> u64 {
-        self.size.div_ceil(u64::from(self.chunk_size))
+    /// How this file is split into chunks.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BeamError::Malformed`] if the chunk size is zero (never true for items in a
+    /// validated [`Manifest`]).
+    pub fn layout(&self) -> Result<ChunkLayout> {
+        ChunkLayout::new(self.size, self.chunk_size)
     }
 }
 

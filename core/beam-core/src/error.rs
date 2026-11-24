@@ -60,6 +60,13 @@ pub enum BeamError {
         source: std::io::Error,
     },
 
+    /// Received data does not match its hash.
+    #[error("integrity check failed for chunk {chunk}")]
+    IntegrityMismatch {
+        /// Index of the chunk that failed verification.
+        chunk: u64,
+    },
+
     /// The operation was cancelled.
     #[error("operation cancelled")]
     Cancelled,
@@ -74,6 +81,7 @@ impl BeamError {
                 ErrorCategory::Protocol
             }
             Self::Io { category, .. } => *category,
+            Self::IntegrityMismatch { .. } => ErrorCategory::Crypto,
             Self::Cancelled => ErrorCategory::Cancelled,
         }
     }
