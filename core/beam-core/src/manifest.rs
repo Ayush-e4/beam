@@ -7,7 +7,7 @@
 
 use std::collections::HashSet;
 
-use crate::integrity::ChunkLayout;
+use crate::integrity::{ChunkLayout, Hash};
 use crate::safe_path::SafePath;
 use crate::{BeamError, Result};
 
@@ -16,6 +16,8 @@ pub const MIN_CHUNK_SIZE: u32 = 64 * 1024;
 
 /// Largest allowed chunk size (16 MiB, the frame payload limit).
 pub const MAX_CHUNK_SIZE: u32 = 16 * 1024 * 1024;
+
+const FINGERPRINT_CONTEXT: &str = "beam 2026-11 manifest fingerprint v1";
 
 /// Most items accepted in a single transfer.
 pub const MAX_ITEMS: usize = 1_000_000;
@@ -127,6 +129,23 @@ impl Manifest {
     #[must_use]
     pub fn total_size(&self) -> u64 {
         self.total_size
+    }
+
+    /// A hash identifying this exact manifest, used to bind a resume journal to it.
+    #[must_use]
+    pub fn fingerprint(&self) -> Hash {
+        let mut hasher = blake3::Hasher::new_derive_key(FINGERPRINT_CONTEXT);
+        hasher.update(&self.transfer_id.0);
+        hasher.update(&(self.items.len() as u64).to_le_bytes());
+        for item in &self.items {
+            let path = item.path.to_string();
+            hasher.update(&item.item_id.to_le_bytes());
+            hasher.update(&(path.len() as u64).to_le_bytes());
+            hasher.update(path.as_bytes());
+            hasher.update(&item.size.to_le_bytes());
+            hasher.update(&item.chunk_size.to_le_bytes());
+        }
+        *hasher.finalize().as_bytes()
     }
 
     /// Looks up an item by its ID.
