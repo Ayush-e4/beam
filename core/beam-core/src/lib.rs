@@ -6,8 +6,12 @@
 
 pub mod error;
 pub mod frame;
+pub mod manifest;
+pub mod safe_path;
 pub mod version;
 
 pub use error::{BeamError, ErrorCategory, Result};
 pub use frame::{Decoded, Frame, FrameType};
+pub use manifest::{Manifest, ManifestItem, TransferId};
+pub use safe_path::SafePath;
 pub use version::ProtocolVersion;
