@@ -8,3 +8,5 @@ target/
 android/
 core/
 package-lock.json
+out/
+*.tsbuildinfo

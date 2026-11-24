@@ -33,3 +33,6 @@ coverage/
 
 # Claude Code local settings
 .claude/settings.local.json
+out/
+next-env.d.ts
+*.tsbuildinfo

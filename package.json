@@ -6,7 +6,8 @@
     "node": ">=26.13.1"
   },
   "workspaces": [
-    "web"
+    "web",
+    "site"
   ],
   "scripts": {
     "format": "prettier --write .",
