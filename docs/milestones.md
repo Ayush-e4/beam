@@ -35,11 +35,12 @@ Every milestone is delivered as a series of small PRs.
 
 ## M4: Speed
 
-- Direct Wi-Fi mode (Wi-Fi Direct / Aware).
-- USB-C cable mode.
+- Connect anywhere: Wi-Fi Direct / Aware, local-only phone hotspot, internet peer-to-peer
+  (NAT traversal) and encrypted relay fallback, with automatic path selection.
 - Transport tuning (BBR, batching, buffers), QUIC vs TCP selection, multi-core pipeline.
 - Benchmark harness and comparison with LocalSend and Quick Share.
-- **Exit:** benchmark targets in `performance.md` met or explained.
+- **Exit:** transfers work with no shared Wi-Fi (direct, hotspot, internet) and benchmark
+  targets in `performance.md` are met or explained.
 
 ## M5: Continuity and offline
 
@@ -65,6 +66,6 @@ Every milestone is delivered as a series of small PRs.
 
 ## After v1
 
-- v1.1: LocalSend compatibility.
-- v2: native desktop apps, folder sync, photo backup, notification mirroring.
-- v3: webcam and mic, screen mirroring, broadcast, internet relay, automations, CLI.
+- v1.1: LocalSend compatibility, Bluetooth fallback for small items.
+- v2: USB-C cable mode, native desktop apps, folder sync, photo backup, notification mirroring.
+- v3: webcam and mic, screen mirroring, broadcast, automations, CLI.
