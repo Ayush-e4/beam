@@ -1,0 +1,13 @@
+[package]
+name = "beam-core"
+version = "0.1.0"
+description = "Beam transfer engine: protocol, transports, crypto and file pipeline."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = "2.0.21"
