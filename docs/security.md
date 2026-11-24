@@ -29,6 +29,9 @@
   the `snow` library: `Noise_XX_25519_AESGCM_BLAKE2s` / `Noise_IK_25519_AESGCM_BLAKE2s`, or the
   `ChaChaPoly` variants. Pairing binds the one-time token and the phone key from the QR code into
   the prologue; the scanner rejects any other phone key as soon as it arrives.
+- **QUIC TLS:** QUIC's mandatory TLS 1.3 uses a throwaway self-signed certificate per endpoint
+  and clients accept any certificate. This is deliberate: identity and end-to-end encryption
+  come from the Noise handshake inside the stream, never from the transport.
 - **Bulk encryption:** AES-256-GCM with hardware acceleration; ChaCha20-Poly1305 fallback.
 - **Integrity:** BLAKE3 per chunk plus whole-file root hash.
 - Only well-maintained, audited libraries; no custom crypto primitives.
