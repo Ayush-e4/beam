@@ -1,0 +1,56 @@
+name: Core fuzzing
+
+# Nightly Rust is used only here, for libFuzzer instrumentation. The app builds on stable.
+on:
+  pull_request:
+    paths: ['core/**', '.github/workflows/fuzz.yml']
+  schedule:
+    - cron: '0 3 * * *' # nightly at 03:00 UTC: longer runs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - frame_decode
+          - safe_path
+          - session_receive
+          - handshake_read
+          - unpack
+          - decode_chunk
+          - journal_open
+    defaults:
+      run:
+        working-directory: core/fuzz
+    env:
+      SECONDS_PER_TARGET: ${{ github.event_name == 'schedule' && 1200 || 45 }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install nightly
+        run: rustup toolchain install nightly --profile minimal
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core/fuzz
+          key: ${{ matrix.target }}
+      - name: Fuzz ${{ matrix.target }}
+        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=${SECONDS_PER_TARGET}
+      - name: Upload crashing input
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: core/fuzz/artifacts/
