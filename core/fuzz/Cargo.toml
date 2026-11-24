@@ -1,0 +1,67 @@
+[package]
+name = "beam-core-fuzz"
+version = "0.0.0"
+description = "Fuzz targets for beam-core's parsers. Run with `cargo +nightly fuzz run <target>`."
+edition = "2024"
+license = "LicenseRef-Proprietary"
+publish = false
+
+# Its own workspace, so the main build never needs nightly.
+[workspace]
+members = ["."]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+beam-core = { path = "../beam-core" }
+libfuzzer-sys = "0.4.13"
+
+[[bin]]
+name = "frame_decode"
+path = "fuzz_targets/frame_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "safe_path"
+path = "fuzz_targets/safe_path.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "session_receive"
+path = "fuzz_targets/session_receive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "handshake_read"
+path = "fuzz_targets/handshake_read.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "unpack"
+path = "fuzz_targets/unpack.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode_chunk"
+path = "fuzz_targets/decode_chunk.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "journal_open"
+path = "fuzz_targets/journal_open.rs"
+test = false
+doc = false
+bench = false
