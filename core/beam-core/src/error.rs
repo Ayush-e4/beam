@@ -41,6 +41,15 @@ pub enum BeamError {
     #[error("malformed message: {0}")]
     Malformed(String),
 
+    /// A path received from a peer is unsafe (traversal, absolute path, invalid name).
+    #[error("unsafe path {path:?}: {reason}")]
+    UnsafePath {
+        /// The path as received.
+        path: String,
+        /// Why it was rejected.
+        reason: &'static str,
+    },
+
     /// An I/O error from the network or the file system.
     #[error("{category:?} I/O error: {source}")]
     Io {
@@ -61,7 +70,9 @@ impl BeamError {
     #[must_use]
     pub fn category(&self) -> ErrorCategory {
         match self {
-            Self::IncompatibleVersion { .. } | Self::Malformed(_) => ErrorCategory::Protocol,
+            Self::IncompatibleVersion { .. } | Self::Malformed(_) | Self::UnsafePath { .. } => {
+                ErrorCategory::Protocol
+            }
             Self::Io { category, .. } => *category,
             Self::Cancelled => ErrorCategory::Cancelled,
         }
