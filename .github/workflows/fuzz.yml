@@ -47,7 +47,11 @@ jobs:
           workspaces: core/fuzz
           key: ${{ matrix.target }}
       - name: Fuzz ${{ matrix.target }}
-        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=${SECONDS_PER_TARGET}
+        # The prebuilt cargo-fuzz is a musl binary and would default to the musl target,
+        # which AddressSanitizer does not support; build for glibc explicitly.
+        run: >-
+          cargo +nightly fuzz run ${{ matrix.target }} --target x86_64-unknown-linux-gnu
+          -- -max_total_time=${SECONDS_PER_TARGET}
       - name: Upload crashing input
         if: failure()
         uses: actions/upload-artifact@v7
