@@ -52,9 +52,11 @@ platform**. There is no fixed deadline; quality and reliability come first.
 
 - Phone ↔ browser (PWA), with nothing installed on the receiving side.
 - Phone ↔ phone (Android ↔ Android).
-- **Direct Wi-Fi mode:** Wi-Fi Direct / Wi-Fi Aware, bypassing the router.
-- **USB-C cable mode:** a USB network link for multi-gigabit transfers.
-- **Offline mode:** a local web server when there is no internet.
+- **Connect anywhere:** no shared Wi-Fi required. Beam picks the best path automatically:
+  same network, Wi-Fi Direct / Aware (phone ↔ phone), a private phone hotspot (phone ↔
+  laptop/tablet), peer-to-peer over the internet across different networks, or an encrypted
+  relay when nothing else works.
+- **Offline mode:** a local web server when there is Wi-Fi but no internet.
 - Original quality, no size limits, files and folders.
 - Resumable transfers with per-chunk integrity checks.
 - Share sheet integration ("Share → Beam") and transfer history.
@@ -71,15 +73,15 @@ platform**. There is no fixed deadline; quality and reliability come first.
 
 ## Later versions
 
-| Version | Features                                                                                                                                    |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| v1.1    | LocalSend protocol compatibility                                                                                                            |
-| v2      | Native desktop apps, live folder sync, automatic photo backup to PC, notification mirroring                                                 |
-| v3      | Phone as webcam and microphone, screen mirroring and control, broadcast to many receivers, internet relay across networks, automations, CLI |
+| Version | Features                                                                                                      |
+| ------- | ------------------------------------------------------------------------------------------------------------- |
+| v1.1    | LocalSend protocol compatibility; Bluetooth fallback for small items                                          |
+| v2      | USB-C cable mode, native desktop apps, live folder sync, automatic photo backup to PC, notification mirroring |
+| v3      | Phone as webcam and microphone, screen mirroring and control, broadcast to many receivers, automations, CLI   |
 
 ## Monetization
 
-- **Free:** unlimited transfers, browser sharing, phone ↔ phone, direct Wi-Fi and cable modes.
+- **Free:** unlimited transfers, browser sharing, phone ↔ phone, every connection path (relay has a monthly cap).
 - **Pro (subscription + lifetime option):** universal clipboard at launch; folder sync, photo
   backup, desktop continuity, webcam and other continuity features as they ship; unlimited relay.
 - **Ads:** none during transfers. At most a small banner in transfer history on the free tier.

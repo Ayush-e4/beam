@@ -31,7 +31,8 @@
 - **Transfer service:** a foreground service (`dataSync` type) owns every active transfer so
   Android doesn't kill it. Note Android 15+ limits `dataSync` services to about 6 hours per 24 h.
 - **Discovery:** Network Service Discovery (mDNS) on the LAN, plus QR pairing.
-- **Links:** LAN, Wi-Fi Direct / Wi-Fi Aware (direct mode), USB network (cable mode).
+- **Links:** LAN, Wi-Fi Direct / Wi-Fi Aware, local-only hotspot, internet (WebRTC/QUIC),
+  Bluetooth fallback (v1.1), USB network (later).
 - **Security:** pairing keys in Android Keystore (StrongBox where available).
 - **Storage:** Room for history and trusted devices; MediaStore / SAF for user files.
 - **Permissions:** the Android 17 local network permission is requested with clear onboarding.
@@ -80,15 +81,26 @@ static generation, GSAP and anime.js for animation.
 Used only when a direct connection fails (strict office or school networks). Data stays
 end-to-end encrypted. Free tier has a monthly cap; unlimited on Pro.
 
-## Connection modes
+## Connect anywhere
 
-| Mode         | When                                    | Path                                             |
-| ------------ | --------------------------------------- | ------------------------------------------------ |
-| Connected    | Phone and browser both online           | Signaling via Workers, data direct over LAN      |
-| Offline      | No internet, shared Wi-Fi               | Phone hosts a local web server; reduced features |
-| Direct Wi-Fi | Phone ↔ phone, no router or faster path | Wi-Fi Direct / Aware link                        |
-| Cable        | USB-C connected                         | USB network interface                            |
-| Relay        | Direct path blocked                     | TURN, end-to-end encrypted                       |
+Beam never requires devices to share a Wi-Fi network. It tries the fastest path first and falls
+back automatically; the user never picks a mode, the UI only shows which link is in use.
+
+```
+Same network → Direct Wi-Fi → Phone hotspot → Internet peer-to-peer → Encrypted relay
+                                                       (small items only) → Bluetooth
+```
+
+| Path                  | When                                       | How                                                                   |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| Same network          | Both devices on the same Wi-Fi/LAN         | Direct LAN connection (signaling via Workers when online)             |
+| Offline local server  | Shared Wi-Fi but no internet               | Phone hosts a local web server; reduced browser features              |
+| Direct Wi-Fi          | Phone ↔ phone, no shared network           | Wi-Fi Direct / Wi-Fi Aware link                                       |
+| Phone hotspot         | Phone ↔ laptop/tablet, no shared network   | Android local-only hotspot (no internet sharing, no mobile data used) |
+| Internet peer-to-peer | Devices on different networks, both online | WebRTC/QUIC with NAT traversal (STUN)                                 |
+| Encrypted relay       | Peer-to-peer blocked (strict networks)     | TURN, end-to-end encrypted; free tier capped                          |
+| Bluetooth (v1.1)      | No network at all, small items             | BLE for text, links and clipboard                                     |
+| Cable (later)         | USB-C connected                            | USB network interface                                                 |
 
 ## Repository layout
 

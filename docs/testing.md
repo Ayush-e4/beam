@@ -20,8 +20,8 @@ to `master` unless all checks pass.
 - **Compose UI tests** for each screen and key flows (pairing, send, receive, history).
 - **Instrumented tests** on emulators for services, permissions and storage.
 - **Real-device test matrix** (manual and scripted over adb): Samsung, Pixel, Xiaomi, OnePlus,
-  plus at least one low-end device. Covers Wi-Fi Direct/Aware, USB cable mode, background
-  limits and OEM battery killers.
+  plus at least one low-end device. Covers Wi-Fi Direct/Aware, phone hotspot, internet
+  peer-to-peer, background limits and OEM battery killers.
 - `ktlint`/`detekt` and Android Lint with zero warnings.
 
 ### Web app (React PWA)
@@ -44,19 +44,28 @@ to `master` unless all checks pass.
 
 Automated, using an Android emulator (or a real device over adb) and headless browsers:
 
-| Scenario                         | Checks                                        |
-| -------------------------------- | --------------------------------------------- |
-| Phone → browser, 1 file          | Integrity, speed, UI states                   |
-| Browser → phone, folder          | Structure preserved, names sanitized          |
-| Phone → phone                    | Both transports, discovery, acceptance        |
-| 50 GB single file                | Streaming to disk, memory stays flat          |
-| 10,000 small files               | Packing, throughput, no per-file stalls       |
-| Wi-Fi drop mid-transfer          | Resume from verified ranges, no corruption    |
-| App backgrounded / screen locked | Transfer continues via foreground service     |
-| Storage full                     | Clean failure with a clear message            |
-| Unknown sender                   | Approval prompt, rejection works              |
-| Clipboard sync                   | Text and image both directions, no echo loops |
-| Offline mode                     | Local server path works without internet      |
+| Scenario                                  | Checks                                        |
+| ----------------------------------------- | --------------------------------------------- |
+| Phone → browser, 1 file                   | Integrity, speed, UI states                   |
+| Browser → phone, folder                   | Structure preserved, names sanitized          |
+| Phone → phone                             | Both transports, discovery, acceptance        |
+| 50 GB single file                         | Streaming to disk, memory stays flat          |
+| 10,000 small files                        | Packing, throughput, no per-file stalls       |
+| Wi-Fi drop mid-transfer                   | Resume from verified ranges, no corruption    |
+| App backgrounded / screen locked          | Transfer continues via foreground service     |
+| Storage full                              | Clean failure with a clear message            |
+| Unknown sender                            | Approval prompt, rejection works              |
+| Clipboard sync                            | Text and image both directions, no echo loops |
+| No shared Wi-Fi (hotspot/direct/internet) | Automatic path selection, transfer completes  |
+| Offline mode                              | Local server path works without internet      |
+
+## Current test devices
+
+| Device                      | Role                                                           |
+| --------------------------- | -------------------------------------------------------------- |
+| Samsung Galaxy S21 FE (adb) | Android app; scripted installs and tests over USB              |
+| Mac                         | Laptop side: browsers (Chrome, Safari, Firefox), desktop later |
+| iPad (Wi-Fi only)           | Real Safari/iPadOS web app; hotspot and internet path testing  |
 
 ## Network conditions
 
