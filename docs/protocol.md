@@ -20,17 +20,27 @@ validated with tests and fuzzing.
 
 ## Pairing (first connection)
 
+The device with a camera scans; the other displays. Usually a laptop or browser shows the QR
+code and the phone scans it. Between two phones, either can show it.
+
 ```
-Phone shows QR ──► Browser/other phone scans
-QR payload: { version, pairing_token, phone_device_pubkey,
-              connection hints (LAN addresses, ports),
-              webtransport_cert_hash, signaling_room }
+Laptop / browser shows QR ──► phone scans          (phone ↔ computer)
+Phone A shows QR          ──► phone B scans        (phone ↔ phone)
+
+QR payload: { version, pairing_token, displayer_device_pubkey, signaling_room,
+              connection hints (LAN addresses, ports; only if the displayer accepts connections) }
 ```
 
-1. The phone generates a one-time `pairing_token` (short-lived, single use).
-2. The scanner connects using the hints (or the signaling room if direct hints fail).
-3. Both sides run a **Noise XX-style handshake** bound to the pairing token and the phone key
-   from the QR. A mismatch aborts the connection, which defeats man-in-the-middle attacks,
+1. The displayer generates a one-time `pairing_token` (short-lived, single use).
+2. The two devices connect. Who connects is independent of who displayed the code:
+   - **Displayer accepts connections** (a phone or the desktop app): the scanner connects
+     using the hints, or the signaling room if they fail.
+   - **Displayer is a browser** (browsers cannot accept connections): the phone joins the
+     signaling room and posts its connection hints and WebTransport certificate hash, sealed
+     with a key derived from the pairing token so the server cannot alter them. The browser
+     then connects to the phone.
+3. Both sides run a **Noise XX handshake** bound to the pairing token and the displayer's key
+   from the QR. The scanner rejects any other key, which defeats man-in-the-middle attacks,
    including a malicious signaling server.
 4. Both sides display a short **verification code** derived from the handshake transcript
    (optional confirmation for high-trust pairing).

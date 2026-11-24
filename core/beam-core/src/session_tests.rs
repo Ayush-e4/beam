@@ -2,7 +2,7 @@ use proptest::prelude::*;
 
 use super::*;
 use crate::frame::{FrameType, MAX_PAYLOAD_LEN};
-use crate::handshake::{Cipher, Handshake};
+use crate::handshake::{Cipher, Handshake, Role};
 use crate::keys::StaticKeypair;
 
 const TOKEN: &[u8; 16] = b"one-time-token!!";
@@ -13,9 +13,16 @@ fn pair() -> (Session, Session) {
         StaticKeypair::generate().unwrap(),
         StaticKeypair::generate().unwrap(),
     );
-    let mut i =
-        Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap();
-    let mut r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let mut i = Handshake::pairing_scanner(
+        &scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .unwrap();
+    let mut r =
+        Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     r.read_message(&i.write_message().unwrap()).unwrap();
     i.read_message(&r.write_message().unwrap()).unwrap();
     r.read_message(&i.write_message().unwrap()).unwrap();

@@ -56,8 +56,9 @@ protocol as the native transports, so the session logic stays in `beam-core`.
 ### Web app (`web/`, React PWA)
 
 - Served over HTTPS from our domain so it is installable and gets full browser APIs.
-- Connects to the phone directly: **WebTransport** first (certificate pinned by hash from the
-  QR code), **WebRTC** data channels as fallback.
+- Shows the pairing QR code for the phone to scan, then connects to the phone directly:
+  **WebTransport** first (certificate pinned by the hash the phone sends during pairing),
+  **WebRTC** data channels as fallback.
 - Streams received files straight to disk (File System Access API on Chromium; streamed
   service-worker downloads on Safari/Firefox).
 - Clipboard via the Async Clipboard API (works while the tab is focused).
@@ -74,7 +75,8 @@ static generation, GSAP and anime.js for animation.
 
 - Exchanges connection offers between a phone and a browser; never sees file data.
 - Rooms are keyed by a one-time pairing token from the QR code and expire quickly.
-- Messages are authenticated with keys from the QR code, so the server cannot impersonate a peer.
+- Messages are sealed with a key derived from the QR token, so the server cannot read, alter or
+  impersonate them.
 
 ### TURN relay
 

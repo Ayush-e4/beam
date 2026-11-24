@@ -5,6 +5,7 @@
 
 use std::net::{Ipv4Addr, SocketAddr};
 
+use beam_core::handshake::Role;
 use beam_core::quic::{QuicEndpoint, QuicStream};
 use beam_core::{Cipher, Connection, ErrorCategory, Frame, FrameType, Handshake, StaticKeypair};
 
@@ -44,8 +45,15 @@ async fn pairing_then_bulk_and_many_small_frames_arrive_intact() {
     let (scanner, phone) = (key(), key());
     let (client, _) = endpoint();
     let (server, addr) = endpoint();
-    let i = Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap();
-    let r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let i = Handshake::pairing_scanner(
+        &scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .unwrap();
+    let r = Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     let (a, b) = tokio::join!(client.connect(addr, i), server.accept(r));
     let (mut sender, (mut receiver, _)) = (a.unwrap(), b.unwrap());
     assert_eq!(sender.verification_code(), receiver.verification_code());

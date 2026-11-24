@@ -27,8 +27,8 @@ fn pairing(
     phone: &StaticKeypair,
 ) -> Result<(Established, Established)> {
     run(
-        Handshake::pairing_initiator(scanner, cipher, TOKEN, phone.public())?,
-        Handshake::pairing_responder(phone, cipher, TOKEN)?,
+        Handshake::pairing_scanner(scanner, cipher, Role::Initiator, TOKEN, phone.public())?,
+        Handshake::pairing_displayer(phone, cipher, Role::Responder, TOKEN)?,
     )
 }
 
@@ -60,9 +60,16 @@ fn pairing_authenticates_both_sides_with_either_cipher() {
 #[test]
 fn pairing_takes_three_messages() {
     let (scanner, phone) = (keypair(), keypair());
-    let mut i =
-        Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap();
-    let mut r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let mut i = Handshake::pairing_scanner(
+        &scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .unwrap();
+    let mut r =
+        Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     r.read_message(&i.write_message().unwrap()).unwrap();
     i.read_message(&r.write_message().unwrap()).unwrap();
     assert!(!i.is_finished());
@@ -82,14 +89,15 @@ fn every_session_gets_a_fresh_verification_code() {
 fn wrong_pairing_token_fails() {
     let (scanner, phone) = (keypair(), keypair());
     let err = run(
-        Handshake::pairing_initiator(
+        Handshake::pairing_scanner(
             &scanner,
             Cipher::AesGcm,
+            Role::Initiator,
             b"stolen-old-token",
             phone.public(),
         )
         .unwrap(),
-        Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap(),
+        Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap(),
     )
     .err()
     .unwrap();
@@ -100,9 +108,16 @@ fn wrong_pairing_token_fails() {
 fn impostor_phone_is_rejected_before_the_scanner_reveals_itself() {
     // The QR names the real phone, but an attacker answers the connection.
     let (scanner, phone, attacker) = (keypair(), keypair(), keypair());
-    let mut i =
-        Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap();
-    let mut r = Handshake::pairing_responder(&attacker, Cipher::AesGcm, TOKEN).unwrap();
+    let mut i = Handshake::pairing_scanner(
+        &scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .unwrap();
+    let mut r =
+        Handshake::pairing_displayer(&attacker, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     r.read_message(&i.write_message().unwrap()).unwrap();
     let err = i.read_message(&r.write_message().unwrap()).unwrap_err();
     assert!(matches!(
@@ -139,8 +154,15 @@ fn known_device_handshake_fails_against_a_different_device() {
 fn mismatched_ciphers_fail() {
     let (scanner, phone) = (keypair(), keypair());
     let result = run(
-        Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap(),
-        Handshake::pairing_responder(&phone, Cipher::ChaChaPoly, TOKEN).unwrap(),
+        Handshake::pairing_scanner(
+            &scanner,
+            Cipher::AesGcm,
+            Role::Initiator,
+            TOKEN,
+            phone.public(),
+        )
+        .unwrap(),
+        Handshake::pairing_displayer(&phone, Cipher::ChaChaPoly, Role::Responder, TOKEN).unwrap(),
     );
     assert!(result.is_err());
 }
@@ -148,9 +170,16 @@ fn mismatched_ciphers_fail() {
 #[test]
 fn tampered_message_is_rejected() {
     let (scanner, phone) = (keypair(), keypair());
-    let mut i =
-        Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap();
-    let mut r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let mut i = Handshake::pairing_scanner(
+        &scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .unwrap();
+    let mut r =
+        Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     r.read_message(&i.write_message().unwrap()).unwrap();
     let mut reply = r.write_message().unwrap();
     let last = reply.len() - 1;
@@ -164,7 +193,8 @@ fn tampered_message_is_rejected() {
 #[test]
 fn misuse_is_reported_not_panicked() {
     let phone = keypair();
-    let mut r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let mut r =
+        Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     assert!(!r.is_my_turn());
     assert!(r.write_message().is_err());
     assert!(r.read_message(&[0u8; 3]).is_err());
@@ -176,8 +206,48 @@ fn pairing_token_length_is_bounded() {
     let phone = keypair();
     let short = [0u8; MIN_PAIRING_TOKEN_LEN - 1];
     let long = [0u8; MAX_PAIRING_TOKEN_LEN + 1];
-    assert!(Handshake::pairing_responder(&phone, Cipher::AesGcm, &short).is_err());
-    assert!(Handshake::pairing_responder(&phone, Cipher::AesGcm, &long).is_err());
+    assert!(Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, &short).is_err());
+    assert!(Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, &long).is_err());
     let max = [0u8; MAX_PAIRING_TOKEN_LEN];
-    assert!(Handshake::pairing_responder(&phone, Cipher::AesGcm, &max).is_ok());
+    assert!(Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, &max).is_ok());
+}
+
+#[test]
+fn browser_shows_the_code_and_connects_out_to_the_phone() {
+    // A browser cannot accept connections, so it displays the QR and initiates; the phone
+    // scans and responds.
+    let (browser, phone) = (keypair(), keypair());
+    let (b, p) = run(
+        Handshake::pairing_displayer(&browser, Cipher::AesGcm, Role::Initiator, TOKEN).unwrap(),
+        Handshake::pairing_scanner(
+            &phone,
+            Cipher::AesGcm,
+            Role::Responder,
+            TOKEN,
+            browser.public(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(b.peer(), phone.public());
+    assert_eq!(p.peer(), browser.public());
+    assert_eq!(b.verification_code(), p.verification_code());
+}
+
+#[test]
+fn phone_scanning_rejects_a_connector_that_is_not_the_displayed_browser() {
+    // Someone who learned the token connects first, but their key is not the one in the QR.
+    let (browser, phone, attacker) = (keypair(), keypair(), keypair());
+    let result = run(
+        Handshake::pairing_displayer(&attacker, Cipher::AesGcm, Role::Initiator, TOKEN).unwrap(),
+        Handshake::pairing_scanner(
+            &phone,
+            Cipher::AesGcm,
+            Role::Responder,
+            TOKEN,
+            browser.public(),
+        )
+        .unwrap(),
+    );
+    assert!(result.is_err());
 }
