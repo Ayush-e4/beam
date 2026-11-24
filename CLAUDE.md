@@ -3,6 +3,7 @@
 These rules apply to every change in this repository. They override global defaults.
 
 ## GitHub account
+
 - Use the **Ayush-e4** GitHub account for everything in this repo: pushes, PRs, merges, comments.
 - Never use `ayushtxp` here, and never run `gh auth switch` (another session on this PC relies on
   `ayushtxp` being the active account). Instead, prefix `gh` commands with
@@ -14,6 +15,7 @@ These rules apply to every change in this repository. They override global defau
   trailers.
 
 ## Branches and pull requests
+
 - `master` is the only long-lived branch. Never commit directly to it.
 - Every change goes through a short-lived branch and a pull request, which is then squash-merged.
 - Branch names: `feat/...`, `fix/...`, `chore/...`, `docs/...`, `test/...`, `refactor/...`.
@@ -22,6 +24,7 @@ These rules apply to every change in this repository. They override global defau
 - Experimental work (e.g. a future v2) gets its own branch and follows the same rules.
 
 ## Code rules
+
 - **No file longer than 300 lines.** Split modules before they reach the limit.
 - Use the latest **stable / LTS** versions of languages, SDKs and libraries. If a version is very
   new or its status is uncertain, verify it before adopting, and prefer the latest LTS.
@@ -33,8 +36,10 @@ These rules apply to every change in this repository. They override global defau
 - Keep a clear folder structure; each module has one responsibility.
 
 ## Testing
+
 - New behaviour ships with tests. Bug fixes ship with a test that reproduces the bug.
 - All tests and linters must pass before a PR is merged.
 
 ## When unsure
+
 - Ask before making product decisions, adding major dependencies, or anything hard to reverse.

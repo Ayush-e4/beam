@@ -5,14 +5,15 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
 
 ## Link ceilings (realistic)
 
-| Link | Typical real throughput |
-|---|---|
-| Wi-Fi 5 (ac) | ~300–600 Mbps |
-| Wi-Fi 6/6E (ax) | ~600–1,200 Mbps |
-| Wi-Fi 7 (close range) | ~1.5–2.5+ Gbps |
-| USB-C (USB 3.x) | ~3–10 Gbps |
+| Link                  | Typical real throughput |
+| --------------------- | ----------------------- |
+| Wi-Fi 5 (ac)          | ~300–600 Mbps           |
+| Wi-Fi 6/6E (ax)       | ~600–1,200 Mbps         |
+| Wi-Fi 7 (close range) | ~1.5–2.5+ Gbps          |
+| USB-C (USB 3.x)       | ~3–10 Gbps              |
 
 ## 1. Raise the ceiling
+
 - **Direct Wi-Fi for phone ↔ phone:** through a router every packet crosses the air twice;
   a Wi-Fi Direct / Wi-Fi Aware link can nearly double throughput.
 - **Band awareness:** prefer 5/6 GHz and wide channels; warn when stuck on 2.4 GHz.
@@ -21,6 +22,7 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
   power-save from throttling the radio.
 
 ## 2. Transport
+
 - **QUIC** (`quinn`) with **BBR** congestion control, large flow-control windows and large
   socket buffers.
 - **UDP batching:** GSO/GRO and `sendmmsg`/`recvmmsg` to cut syscalls per packet.
@@ -30,6 +32,7 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
 - **Parallel streams** to keep the pipe full and hide per-stream stalls.
 
 ## 3. CPU
+
 - **Hardware crypto:** AES-GCM via ARMv8 crypto extensions (ChaCha20-Poly1305 fallback on
   devices without them).
 - **BLAKE3** hashing with NEON SIMD.
@@ -40,6 +43,7 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
 - **Zero-copy where possible:** reuse buffers from a pool; avoid intermediate copies.
 
 ## 4. Storage
+
 - Raw file descriptors with `pread`/`pwrite` and large aligned buffers.
 - **Pre-allocate** destination files (`fallocate`) to avoid fragmentation.
 - Avoid FUSE overhead on shared storage: write to app storage or use passthrough-friendly
@@ -48,6 +52,7 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
 - **Adaptive compression:** zstd only when sampled data is compressible.
 
 ## 5. Browser side
+
 - **WebTransport** (HTTP/3) first: typically much faster than WebRTC data channels. The phone's
   self-signed certificate is pinned by its hash from the QR code.
 - **WebRTC tuning** as fallback: multiple data channels, tuned message size, buffered-amount
@@ -57,21 +62,23 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
 - Workers for hashing and decryption so the UI stays at 60+ fps.
 
 ## 6. Android system integration
+
 - Foreground service with progress notification for every active transfer.
 - Partial wake lock only while bytes are moving.
 - Battery-aware behaviour: skip speed boosts when battery is low unless the user opts in.
 
 ## Targets (to validate by benchmark)
 
-| Scenario | Typical apps | Beam target |
-|---|---|---|
-| Phone → phone via router | ~20–40 MB/s | ~50–80 MB/s |
-| Phone → phone, direct Wi-Fi | n/a | ~80–150 MB/s |
-| Phone → browser | ~10–30 MB/s | ~50–100+ MB/s |
-| USB-C cable | n/a | ~200–500+ MB/s |
-| 10,000 small photos | minutes | close to large-file throughput |
+| Scenario                    | Typical apps | Beam target                    |
+| --------------------------- | ------------ | ------------------------------ |
+| Phone → phone via router    | ~20–40 MB/s  | ~50–80 MB/s                    |
+| Phone → phone, direct Wi-Fi | n/a          | ~80–150 MB/s                   |
+| Phone → browser             | ~10–30 MB/s  | ~50–100+ MB/s                  |
+| USB-C cable                 | n/a          | ~200–500+ MB/s                 |
+| 10,000 small photos         | minutes      | close to large-file throughput |
 
 ## Measurement
+
 - Built-in diagnostics screen: link type, band, negotiated transport, live MB/s, CPU and
   thermal state.
 - Benchmark harness in `tools/` compares Beam against LocalSend and Quick Share on the same

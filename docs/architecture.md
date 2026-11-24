@@ -26,6 +26,7 @@
 ## Components
 
 ### Android app (`android/`)
+
 - **UI:** Kotlin + Jetpack Compose, single-activity, unidirectional data flow (ViewModel → state).
 - **Transfer service:** a foreground service (`dataSync` type) owns every active transfer so
   Android doesn't kill it. Note Android 15+ limits `dataSync` services to about 6 hours per 24 h.
@@ -36,7 +37,9 @@
 - **Permissions:** the Android 17 local network permission is requested with clear onboarding.
 
 ### beam-core (`core/`, Rust)
+
 Shared engine, compiled for Android now and desktop later.
+
 - Session and protocol state machine (see `protocol.md`).
 - Transports: QUIC (`quinn`) and TCP, chosen per link by benchmark results.
 - Crypto: hardware-accelerated AES-GCM / ChaCha20-Poly1305, Noise-based handshakes.
@@ -45,10 +48,12 @@ Shared engine, compiled for Android now and desktop later.
 - Exposed to Kotlin through a thin, versioned JNI layer with explicit error types.
 
 ### WebRTC peer (Android)
+
 Google's libwebrtc for browsers that lack WebTransport. Data channels carry the same framed
 protocol as the native transports, so the session logic stays in `beam-core`.
 
 ### Web app (`web/`, React PWA)
+
 - Served over HTTPS from our domain so it is installable and gets full browser APIs.
 - Connects to the phone directly: **WebTransport** first (certificate pinned by hash from the
   QR code), **WebRTC** data channels as fallback.
@@ -60,27 +65,30 @@ protocol as the native transports, so the session logic stays in `beam-core`.
 - Animations with GSAP (official React hooks) and anime.js, shared with the website.
 
 ### Website (`site/`, Next.js)
+
 Marketing site: landing page, features, live benchmarks, downloads. Next.js for SEO and
 static generation, GSAP and anime.js for animation.
 
 ### Signaling (`signal/`, Cloudflare Workers + Durable Objects)
+
 - Exchanges connection offers between a phone and a browser; never sees file data.
 - Rooms are keyed by a one-time pairing token from the QR code and expire quickly.
 - Messages are authenticated with keys from the QR code, so the server cannot impersonate a peer.
 
 ### TURN relay
+
 Used only when a direct connection fails (strict office or school networks). Data stays
 end-to-end encrypted. Free tier has a monthly cap; unlimited on Pro.
 
 ## Connection modes
 
-| Mode | When | Path |
-|---|---|---|
-| Connected | Phone and browser both online | Signaling via Workers, data direct over LAN |
-| Offline | No internet, shared Wi-Fi | Phone hosts a local web server; reduced features |
-| Direct Wi-Fi | Phone ↔ phone, no router or faster path | Wi-Fi Direct / Aware link |
-| Cable | USB-C connected | USB network interface |
-| Relay | Direct path blocked | TURN, end-to-end encrypted |
+| Mode         | When                                    | Path                                             |
+| ------------ | --------------------------------------- | ------------------------------------------------ |
+| Connected    | Phone and browser both online           | Signaling via Workers, data direct over LAN      |
+| Offline      | No internet, shared Wi-Fi               | Phone hosts a local web server; reduced features |
+| Direct Wi-Fi | Phone ↔ phone, no router or faster path | Wi-Fi Direct / Aware link                        |
+| Cable        | USB-C connected                         | USB network interface                            |
+| Relay        | Direct path blocked                     | TURN, end-to-end encrypted                       |
 
 ## Repository layout
 
@@ -96,6 +104,7 @@ tools/     Benchmarks, test harnesses, scripts
 ```
 
 ## Cross-cutting rules
+
 - Files stay under 300 lines; modules have one responsibility.
 - All errors are typed and surfaced; nothing fails silently.
 - Every component has its own tests and lint configuration (see `testing.md`).

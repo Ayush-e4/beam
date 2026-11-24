@@ -19,13 +19,13 @@ something from their phone to a PC, another phone, a tablet or a TV is a user.
 
 ## Positioning against existing tools
 
-| Tool | Weakness | Beam's answer |
-|---|---|---|
-| Quick Share | Tied to Google/Samsung, flaky across brands, no browser, no continuity | Works with any device and any browser |
-| LocalSend | Needs the app on both sides, plain UI, transfer only | Zero install on the receiver, polished UX, continuity |
-| SHAREit / Xender | Ads, bloat, trust problems | Clean, private, fast |
-| Phone Link | Windows only, inconsistent | Every platform, reliable |
-| KDE Connect | Powerful but technical | The same power, made simple |
+| Tool             | Weakness                                                               | Beam's answer                                         |
+| ---------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
+| Quick Share      | Tied to Google/Samsung, flaky across brands, no browser, no continuity | Works with any device and any browser                 |
+| LocalSend        | Needs the app on both sides, plain UI, transfer only                   | Zero install on the receiver, polished UX, continuity |
+| SHAREit / Xender | Ads, bloat, trust problems                                             | Clean, private, fast                                  |
+| Phone Link       | Windows only, inconsistent                                             | Every platform, reliable                              |
+| KDE Connect      | Powerful but technical                                                 | The same power, made simple                           |
 
 ## Principles
 
@@ -49,6 +49,7 @@ platform**. There is no fixed deadline; quality and reliability come first.
 ## v1 scope
 
 ### Transfer
+
 - Phone ↔ browser (PWA), with nothing installed on the receiving side.
 - Phone ↔ phone (Android ↔ Android).
 - **Direct Wi-Fi mode:** Wi-Fi Direct / Wi-Fi Aware, bypassing the router.
@@ -59,20 +60,22 @@ platform**. There is no fixed deadline; quality and reliability come first.
 - Share sheet integration ("Share → Beam") and transfer history.
 
 ### Continuity
+
 - **Universal clipboard** between phone and browser (text, images, files).
 
 ### Trust
+
 - QR pairing with key verification; trusted devices remembered.
 - End-to-end encryption by default.
 - No account.
 
 ## Later versions
 
-| Version | Features |
-|---|---|
-| v1.1 | LocalSend protocol compatibility |
-| v2 | Native desktop apps, live folder sync, automatic photo backup to PC, notification mirroring |
-| v3 | Phone as webcam and microphone, screen mirroring and control, broadcast to many receivers, internet relay across networks, automations, CLI |
+| Version | Features                                                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| v1.1    | LocalSend protocol compatibility                                                                                                            |
+| v2      | Native desktop apps, live folder sync, automatic photo backup to PC, notification mirroring                                                 |
+| v3      | Phone as webcam and microphone, screen mirroring and control, broadcast to many receivers, internet relay across networks, automations, CLI |
 
 ## Monetization
 
@@ -83,11 +86,11 @@ platform**. There is no fixed deadline; quality and reliability come first.
 
 ## Decisions log
 
-| Decision | Choice |
-|---|---|
-| Accounts | None in v1; pairing by QR only |
-| Relay (TURN) | Free with a monthly data cap, unlimited on Pro |
-| LocalSend compatibility | v1.1 |
-| Web app framework | React (Vite, static PWA); shares a design system with the website |
-| Marketing website | Next.js with GSAP and anime.js for animations |
-| Name | "Beam" is a codename; public name chosen before launch |
+| Decision                | Choice                                                            |
+| ----------------------- | ----------------------------------------------------------------- |
+| Accounts                | None in v1; pairing by QR only                                    |
+| Relay (TURN)            | Free with a monthly data cap, unlimited on Pro                    |
+| LocalSend compatibility | v1.1                                                              |
+| Web app framework       | React (Vite, static PWA); shares a design system with the website |
+| Marketing website       | Next.js with GSAP and anime.js for animations                     |
+| Name                    | "Beam" is a codename; public name chosen before launch            |
