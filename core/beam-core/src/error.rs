@@ -67,6 +67,14 @@ pub enum BeamError {
         chunk: u64,
     },
 
+    /// A Noise handshake could not be set up, failed authentication or was used out of order.
+    #[error("handshake failed: {0}")]
+    Handshake(String),
+
+    /// The peer authenticated with a different key than the device we meant to reach.
+    #[error("peer key does not match the expected device")]
+    UnexpectedPeerKey,
+
     /// The operation was cancelled.
     #[error("operation cancelled")]
     Cancelled,
@@ -81,7 +89,9 @@ impl BeamError {
                 ErrorCategory::Protocol
             }
             Self::Io { category, .. } => *category,
-            Self::IntegrityMismatch { .. } => ErrorCategory::Crypto,
+            Self::IntegrityMismatch { .. } | Self::Handshake(_) | Self::UnexpectedPeerKey => {
+                ErrorCategory::Crypto
+            }
             Self::Cancelled => ErrorCategory::Cancelled,
         }
     }

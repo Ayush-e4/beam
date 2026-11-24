@@ -7,17 +7,23 @@
 pub mod chunk_set;
 pub mod error;
 pub mod frame;
+pub mod handshake;
 pub mod integrity;
 pub mod journal;
+pub mod keys;
 pub mod manifest;
 pub mod safe_path;
+pub mod verification;
 pub mod version;
 
 pub use chunk_set::ChunkSet;
 pub use error::{BeamError, ErrorCategory, Result};
 pub use frame::{Decoded, Frame, FrameType};
+pub use handshake::{Cipher, Established, Handshake};
 pub use integrity::{ChunkLayout, FileHashes, Hash, RootHasher};
 pub use journal::Journal;
+pub use keys::{PublicKey, StaticKeypair};
 pub use manifest::{Manifest, ManifestItem, TransferId};
 pub use safe_path::SafePath;
+pub use verification::VerificationCode;
 pub use version::ProtocolVersion;
