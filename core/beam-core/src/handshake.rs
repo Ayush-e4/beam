@@ -1,10 +1,10 @@
 //! Noise handshakes that authenticate two devices and derive session keys.
 //!
-//! - **Pairing (XX):** the first connection. The scanner is the initiator and the phone showing
-//!   the QR code is the responder. The prologue binds the one-time pairing token and the phone's
-//!   public key from the QR, so a relay or signaling server in the middle cannot splice two
-//!   handshakes together. The scanner also checks the phone's static key the moment it arrives,
-//!   before revealing its own.
+//! - **Pairing (XX):** the first connection. One device displays a QR code with a one-time token
+//!   and its public key; the device with a camera (normally the phone) scans it. Who opens the
+//!   connection is a separate [`Role`]. The prologue binds the token and the displayed key, so a
+//!   relay or signaling server in the middle cannot splice two handshakes together, and the
+//!   scanner rejects any static key other than the displayed one the moment it arrives.
 //! - **Known device (IK):** the initiator already trusts the responder's key, so the handshake
 //!   takes one round trip.
 //!
@@ -44,6 +44,16 @@ impl Cipher {
     }
 }
 
+/// Which side opens the connection. Independent of who shows the QR code: a browser always
+/// connects out (it cannot accept connections), whether it displayed the code or not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Role {
+    /// Opens the connection and sends the first handshake message.
+    Initiator,
+    /// Accepts the connection.
+    Responder,
+}
+
 /// An in-progress handshake.
 pub struct Handshake {
     state: HandshakeState,
@@ -51,43 +61,41 @@ pub struct Handshake {
 }
 
 impl Handshake {
-    /// Starts pairing as the scanner, using the token and phone key read from the QR code.
+    /// Starts pairing as the device that scanned the QR code (normally a phone), using the token
+    /// and public key it read. `role` says whether this side opens the connection.
     ///
     /// # Errors
     ///
     /// Returns [`BeamError::Handshake`] if the token length is outside the accepted range.
-    pub fn pairing_initiator(
+    pub fn pairing_scanner(
         local: &StaticKeypair,
         cipher: Cipher,
+        role: Role,
         token: &[u8],
-        phone_key: PublicKey,
+        displayed_key: PublicKey,
     ) -> Result<Self> {
-        let prologue = pairing_prologue(token, phone_key)?;
-        let state = builder("XX", cipher)?
-            .local_private_key(local.private_bytes())
-            .and_then(|b| b.prologue(&prologue))
-            .and_then(Builder::build_initiator)
-            .map_err(noise_error)?;
+        let prologue = pairing_prologue(token, displayed_key)?;
         Ok(Self {
-            state,
-            expected_peer: Some(phone_key),
+            state: pairing_state(local, cipher, role, &prologue)?,
+            expected_peer: Some(displayed_key),
         })
     }
 
-    /// Starts pairing as the phone that displayed `token` in its QR code.
+    /// Starts pairing as the device that displayed `token` and its own key in a QR code
+    /// (normally a laptop or browser). `role` says whether this side opens the connection.
     ///
     /// # Errors
     ///
     /// Returns [`BeamError::Handshake`] if the token length is outside the accepted range.
-    pub fn pairing_responder(local: &StaticKeypair, cipher: Cipher, token: &[u8]) -> Result<Self> {
+    pub fn pairing_displayer(
+        local: &StaticKeypair,
+        cipher: Cipher,
+        role: Role,
+        token: &[u8],
+    ) -> Result<Self> {
         let prologue = pairing_prologue(token, local.public())?;
-        let state = builder("XX", cipher)?
-            .local_private_key(local.private_bytes())
-            .and_then(|b| b.prologue(&prologue))
-            .and_then(Builder::build_responder)
-            .map_err(noise_error)?;
         Ok(Self {
-            state,
+            state: pairing_state(local, cipher, role, &prologue)?,
             expected_peer: None,
         })
     }
@@ -244,6 +252,23 @@ fn builder<'a>(pattern: &str, cipher: Cipher) -> Result<Builder<'a>> {
     let name = format!("Noise_{pattern}_25519_{}_BLAKE2s", cipher.noise_name());
     let params = name.parse().map_err(noise_error)?;
     Ok(Builder::new(params))
+}
+
+fn pairing_state(
+    local: &StaticKeypair,
+    cipher: Cipher,
+    role: Role,
+    prologue: &[u8],
+) -> Result<HandshakeState> {
+    let builder = builder("XX", cipher)?
+        .local_private_key(local.private_bytes())
+        .and_then(|b| b.prologue(prologue))
+        .map_err(noise_error)?;
+    match role {
+        Role::Initiator => builder.build_initiator(),
+        Role::Responder => builder.build_responder(),
+    }
+    .map_err(noise_error)
 }
 
 fn pairing_prologue(token: &[u8], phone_key: PublicKey) -> Result<Vec<u8>> {

@@ -12,8 +12,8 @@
 | Threat                                    | Mitigation                                                                             |
 | ----------------------------------------- | -------------------------------------------------------------------------------------- |
 | Eavesdropper on the same Wi-Fi            | All sessions encrypted with keys from the Noise handshake                              |
-| Man-in-the-middle during pairing          | Handshake bound to the phone key and one-time token in the QR code                     |
-| Malicious or compromised signaling server | Signaling messages authenticated with QR-derived keys; server only relays opaque blobs |
+| Man-in-the-middle during pairing          | Handshake bound to the displayed key and one-time token in the QR code                 |
+| Malicious or compromised signaling server | Signaling messages sealed with a QR-token-derived key; server only relays opaque blobs |
 | Relay (TURN) operator                     | Data is end-to-end encrypted before reaching the relay                                 |
 | Malicious nearby device sending files     | Transfers from unknown devices require explicit acceptance; rate limiting              |
 | Malformed packets exploiting parsers      | Rust core, strict length checks, fuzz-tested parsers                                   |
@@ -27,8 +27,8 @@
 - **Key agreement:** X25519. **Signatures:** Ed25519.
 - **Handshake:** Noise (XX pattern for first pairing, IK for known devices), implemented with
   the `snow` library: `Noise_XX_25519_AESGCM_BLAKE2s` / `Noise_IK_25519_AESGCM_BLAKE2s`, or the
-  `ChaChaPoly` variants. Pairing binds the one-time token and the phone key from the QR code into
-  the prologue; the scanner rejects any other phone key as soon as it arrives.
+  `ChaChaPoly` variants. Pairing binds the one-time token and the displaying device's key from the QR
+  code into the prologue; the scanning device rejects any other key as soon as it arrives.
 - **QUIC TLS:** QUIC's mandatory TLS 1.3 uses a throwaway self-signed certificate per endpoint
   and clients accept any certificate. This is deliberate: identity and end-to-end encryption
   come from the Noise handshake inside the stream, never from the transport.
@@ -46,7 +46,8 @@
 ## Web app specifics
 
 - Served only over HTTPS with a strict Content Security Policy and Subresource Integrity.
-- WebTransport certificate pinned by hash from the QR code.
+- WebTransport certificate pinned by its hash, which the phone sends through the signaling room
+  sealed with the QR-token-derived key.
 - No third-party scripts on the transfer pages (analytics only on the marketing site, and
   privacy-friendly).
 

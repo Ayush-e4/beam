@@ -54,7 +54,7 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
 ## 5. Browser side
 
 - **WebTransport** (HTTP/3) first: typically much faster than WebRTC data channels. The phone's
-  self-signed certificate is pinned by its hash from the QR code.
+  self-signed certificate is pinned by the hash it sends during pairing.
 - **WebRTC tuning** as fallback: multiple data channels, tuned message size, buffered-amount
   thresholds for flow control.
 - **Stream to disk:** File System Access API on Chromium; streamed service-worker downloads on

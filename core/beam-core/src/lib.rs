@@ -27,7 +27,7 @@ pub use chunk_set::ChunkSet;
 pub use connection::Connection;
 pub use error::{BeamError, ErrorCategory, Result};
 pub use frame::{Decoded, Frame, FrameType};
-pub use handshake::{Cipher, Established, Handshake};
+pub use handshake::{Cipher, Established, Handshake, Role};
 pub use integrity::{ChunkLayout, FileHashes, Hash, RootHasher};
 pub use journal::Journal;
 pub use keys::{PublicKey, StaticKeypair};

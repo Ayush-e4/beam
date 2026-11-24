@@ -3,7 +3,7 @@ use tokio::io::{DuplexStream, duplex};
 use super::*;
 use crate::ErrorCategory;
 use crate::frame::FrameType;
-use crate::handshake::Cipher;
+use crate::handshake::{Cipher, Role};
 use crate::keys::StaticKeypair;
 
 const TOKEN: &[u8; 16] = b"one-time-token!!";
@@ -19,8 +19,15 @@ fn keys() -> (StaticKeypair, StaticKeypair) {
 async fn connected() -> (Connection<DuplexStream>, Connection<DuplexStream>) {
     let (scanner, phone) = keys();
     let (a, b) = duplex(PIPE_CAPACITY);
-    let i = Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap();
-    let r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let i = Handshake::pairing_scanner(
+        &scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .unwrap();
+    let r = Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     let (a, b) = tokio::join!(Connection::establish(a, i), Connection::establish(b, r));
     (a.unwrap(), b.unwrap())
 }
@@ -55,13 +62,19 @@ async fn cut_off_mid_record_is_a_network_error() {
     // Drive one side by hand so we can send half a record and hang up.
     let (scanner, phone) = keys();
     let (mut raw, b) = duplex(PIPE_CAPACITY);
-    let r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let r = Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     let receiver = tokio::spawn(async move {
         let mut b = Connection::establish(b, r).await?;
         b.recv().await
     });
-    let mut i =
-        Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap();
+    let mut i = Handshake::pairing_scanner(
+        &scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .unwrap();
     write_handshake_message(&mut raw, &i.write_message().unwrap())
         .await
         .unwrap();
@@ -85,7 +98,7 @@ async fn peer_hanging_up_during_handshake_is_a_network_error() {
     let (_, phone) = keys();
     let (raw, b) = duplex(PIPE_CAPACITY);
     drop(raw);
-    let r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let r = Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     let err = Connection::establish(b, r).await.err().unwrap();
     assert_eq!(err.category(), ErrorCategory::Network);
 }
@@ -95,7 +108,7 @@ async fn garbage_handshake_is_a_crypto_error() {
     let (_, phone) = keys();
     let (mut raw, b) = duplex(PIPE_CAPACITY);
     raw.write_all(&[0, 5, 1, 2, 3, 4, 5]).await.unwrap();
-    let r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).unwrap();
+    let r = Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     let err = Connection::establish(b, r).await.err().unwrap();
     assert_eq!(err.category(), ErrorCategory::Crypto);
 }

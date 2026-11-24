@@ -5,6 +5,7 @@
 
 use std::net::{Ipv4Addr, SocketAddr};
 
+use beam_core::handshake::Role;
 use beam_core::tcp::{self, TcpAcceptor};
 use beam_core::{Cipher, Connection, ErrorCategory, Frame, FrameType, Handshake, StaticKeypair};
 use tokio::net::TcpStream;
@@ -30,8 +31,15 @@ async fn paired(
     phone: &StaticKeypair,
 ) -> (Connection<TcpStream>, Connection<TcpStream>) {
     let (acceptor, addr) = acceptor().await;
-    let i = Handshake::pairing_initiator(scanner, Cipher::AesGcm, TOKEN, phone.public()).unwrap();
-    let r = Handshake::pairing_responder(phone, Cipher::AesGcm, TOKEN).unwrap();
+    let i = Handshake::pairing_scanner(
+        scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .unwrap();
+    let r = Handshake::pairing_displayer(phone, Cipher::AesGcm, Role::Responder, TOKEN).unwrap();
     let (a, b) = tokio::join!(tcp::connect(addr, i), acceptor.accept(r));
     (a.unwrap(), b.unwrap().0)
 }

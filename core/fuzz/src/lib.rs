@@ -1,6 +1,7 @@
 //! Shared setup for the fuzz targets. Fuzzing setup code may panic: a broken fixture should
 //! stop the run loudly rather than hide behind an error path.
 
+use beam_core::handshake::Role;
 use beam_core::manifest::{ManifestItem, TransferId};
 use beam_core::{Cipher, Handshake, Manifest, SafePath, Session, StaticKeypair};
 
@@ -33,9 +34,16 @@ pub fn manifest() -> Manifest {
 pub fn paired_sessions() -> (Session, Session) {
     let scanner = StaticKeypair::generate().expect("key");
     let phone = StaticKeypair::generate().expect("key");
-    let mut i = Handshake::pairing_initiator(&scanner, Cipher::AesGcm, TOKEN, phone.public())
-        .expect("initiator");
-    let mut r = Handshake::pairing_responder(&phone, Cipher::AesGcm, TOKEN).expect("responder");
+    let mut i = Handshake::pairing_scanner(
+        &scanner,
+        Cipher::AesGcm,
+        Role::Initiator,
+        TOKEN,
+        phone.public(),
+    )
+    .expect("initiator");
+    let mut r = Handshake::pairing_displayer(&phone, Cipher::AesGcm, Role::Responder, TOKEN)
+        .expect("responder");
     r.read_message(&i.write_message().expect("m1")).expect("m1");
     i.read_message(&r.write_message().expect("m2")).expect("m2");
     r.read_message(&i.write_message().expect("m3")).expect("m3");
@@ -49,7 +57,8 @@ pub fn paired_sessions() -> (Session, Session) {
 #[must_use]
 pub fn pairing_responder() -> Handshake {
     let phone = StaticKeypair::generate().expect("key");
-    Handshake::pairing_responder(&phone, Cipher::ChaChaPoly, TOKEN).expect("responder")
+    Handshake::pairing_displayer(&phone, Cipher::ChaChaPoly, Role::Responder, TOKEN)
+        .expect("responder")
 }
 
 /// Splits `data` into pieces whose sizes come from the input itself, so the fuzzer also
