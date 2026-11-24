@@ -1,0 +1,5 @@
+# Production code may not unwrap, expect or panic (see workspace lints). Tests may, because a
+# failing assertion is exactly how a test reports failure.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
