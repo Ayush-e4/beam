@@ -14,6 +14,7 @@ pub mod integrity;
 pub mod journal;
 pub mod keys;
 pub mod manifest;
+pub mod pack;
 pub mod quic;
 mod quic_tls;
 pub mod safe_path;
