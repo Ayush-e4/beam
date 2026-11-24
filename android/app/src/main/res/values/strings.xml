@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Beam</string>
+    <string name="home_title">Beam</string>
+    <string name="home_subtitle">Send anything to any device. Fast, private, no cables.</string>
+</resources>
