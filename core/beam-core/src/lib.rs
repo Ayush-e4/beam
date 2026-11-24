@@ -5,6 +5,7 @@
 //! through thin bindings.
 
 pub mod chunk_set;
+pub mod connection;
 pub mod error;
 pub mod frame;
 pub mod handshake;
@@ -14,10 +15,12 @@ pub mod keys;
 pub mod manifest;
 pub mod safe_path;
 pub mod session;
+pub mod tcp;
 pub mod verification;
 pub mod version;
 
 pub use chunk_set::ChunkSet;
+pub use connection::Connection;
 pub use error::{BeamError, ErrorCategory, Result};
 pub use frame::{Decoded, Frame, FrameType};
 pub use handshake::{Cipher, Established, Handshake};

@@ -31,7 +31,7 @@ pub const MAX_RECORD_PLAINTEXT: usize = MAX_RECORD_LEN - TAG_LEN;
 /// Records sent in one direction before both sides move to new keys.
 pub const REKEY_INTERVAL: u64 = 1 << 20;
 
-const LEN_PREFIX: usize = 2;
+pub(crate) const LEN_PREFIX: usize = 2;
 
 /// An authenticated, encrypted session with one peer.
 pub struct Session {
@@ -77,6 +77,13 @@ impl Session {
     #[must_use]
     pub const fn peer(&self) -> PublicKey {
         self.peer
+    }
+
+    /// Whether part of a record or frame has arrived without its remainder. A connection that
+    /// closes in this state was cut off mid-message.
+    #[must_use]
+    pub fn has_partial_input(&self) -> bool {
+        !self.pending_record.is_empty() || self.plain.len() > self.plain_start
     }
 
     /// Encrypts `frame` and appends the resulting records to `out`.
