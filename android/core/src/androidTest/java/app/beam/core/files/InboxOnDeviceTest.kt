@@ -38,6 +38,7 @@ class InboxOnDeviceTest {
     fun receivedFilesLandInDownloadBeamAndAreIndexed() = runBlocking {
         assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
         assertEquals(InboxStatus.READY, Inbox.status(context))
+        val stagedBefore = staged()
         val name = "beam-inbox-test-${System.nanoTime()}.bin"
         val bytes = ByteArray(4 * MIB) { (it * 13 % 241).toByte() }
         val source = File(outbox, name).apply {
@@ -58,13 +59,12 @@ class InboxOnDeviceTest {
         Engine(DeviceIdentity.generate()).use { engine ->
             assertEquals(0u, Inbox.removeStale(engine, context)?.failed)
         }
-        assertEquals(
-            "nothing unfinished left behind",
-            emptyList<String>(),
-            folder.listFiles()?.filter { it.isDirectory && it.name.startsWith(".") }
-                ?.flatMap { it.list()?.toList() ?: emptyList() }
-        )
+        assertEquals("nothing unfinished left behind", stagedBefore, staged())
     }
+
+    /** Unfinished transfers in Download/Beam (other tests may leave some on purpose). */
+    private fun staged(): Set<String> =
+        File(Inbox.folder(context), ".beam-partial").list()?.toSet() ?: emptySet()
 
     private suspend fun receive(source: File): String {
         val phone = DeviceIdentity.generate()

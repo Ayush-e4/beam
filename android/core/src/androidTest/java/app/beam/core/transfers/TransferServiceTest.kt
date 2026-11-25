@@ -67,7 +67,7 @@ class TransferServiceTest {
     }
 
     @Test
-    fun theNotificationsCancelStopsTransfersSoTheyResumeLater() = runBlocking {
+    fun theNotificationsCancelStopsTransfers() = runBlocking {
         val id = transfers.runner.start(Direction.SENDING, "video.mp4", 100) {
             awaitCancellation()
         }
@@ -81,7 +81,7 @@ class TransferServiceTest {
         }
         assertEquals(TransferState.Cancelled, ended.single { it.id == id }.state)
         val summary = waitFor(TransferNotifications.SUMMARY_ID).title()
-        assertEquals("Stopped video.mp4. It resumes next time.", summary)
+        assertEquals("Cancelled video.mp4", summary)
         waitForGone(TransferNotifications.ONGOING_ID)
     }
 

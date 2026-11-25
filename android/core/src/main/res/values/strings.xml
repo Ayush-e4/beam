@@ -21,7 +21,7 @@
     <string name="beam_received">Received %1$s</string>
     <string name="beam_declined">%1$s was declined</string>
     <string name="beam_failed">Couldn\'t transfer %1$s: %2$s</string>
-    <string name="beam_cancelled">Stopped %1$s. It resumes next time.</string>
+    <string name="beam_cancelled">Cancelled %1$s</string>
     <plurals name="beam_finished">
         <item quantity="one">%d transfer finished</item>
         <item quantity="other">%d transfers finished</item>
