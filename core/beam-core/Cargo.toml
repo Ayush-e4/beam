@@ -14,7 +14,7 @@ blake3 = "1.8.7"
 quinn = { version = "0.11.12", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
 rcgen = { version = "0.14.10", default-features = false, features = ["ring", "crypto"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std"] }
-snow = "0.10.0"
+snow = { version = "0.10.0", features = ["ring-accelerated"] }
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["net", "io-util", "rt", "time"] }
 zeroize = "1.9.2"
