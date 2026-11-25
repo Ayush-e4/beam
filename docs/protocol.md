@@ -33,6 +33,20 @@ QR payload: { version, pairing_token, displayer_device_pubkey, cipher, signaling
               connection hints (LAN addresses, ports; only if the displayer accepts connections) }
 ```
 
+The QR code holds text: `BEAM1:` then unpadded base32 (QR alphanumeric mode, so the code stays
+small) of:
+
+```
+version u8 = 1 | cipher u8 (0 AES-256-GCM, 1 ChaCha20-Poly1305) | pairing_token [16]
+| displayer key [32] | hint count u8 (at most 4)
+hint = family u8 (4 or 6) | address [4 or 16] | port u16 big-endian
+```
+
+The `signaling_room` is not sent: both sides derive it as the first 16 bytes of
+`BLAKE3-derive_key("beam 2026-11-25 pairing room v1", pairing_token)`. With two hints (one
+IPv6) the text is 130 characters. A web link wrapping the same payload, so that a phone's
+own camera app opens Beam, can follow once the public name and domain are chosen.
+
 1. The displayer generates a one-time `pairing_token` (short-lived, single use) and picks the
    session `cipher`: AES-256-GCM when its CPU accelerates AES, otherwise ChaCha20-Poly1305. The
    scanner uses the same cipher. Trusted devices remember the cipher chosen at pairing.
