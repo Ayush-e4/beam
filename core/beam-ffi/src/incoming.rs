@@ -182,18 +182,18 @@ impl IncomingOffer {
         self.peer.device_id().to_string()
     }
 
-    /// Whether this offer continues a transfer from the same device that was already accepted
-    /// into `destination` and is unfinished there (for example, cut off when the app was
-    /// closed). The app can accept such an offer without asking again.
+    /// Whether this offer continues a transfer of the same files from the same device that was
+    /// already accepted into `destination` and is unfinished there (for example, cut off when
+    /// the app was closed). The app can accept such an offer without asking again.
     ///
     /// # Errors
     ///
     /// [`BeamError::Internal`] if the engine can't check.
     pub async fn continues_in(&self, destination: String) -> Result<bool, BeamError> {
-        let transfer_id = self.manifest.transfer_id();
+        let manifest = self.manifest.clone();
         let sender = self.peer_public_key();
         run(&self.handle, async move {
-            blocking(move || Ok(continues(&PathBuf::from(destination), transfer_id, &sender))).await
+            blocking(move || Ok(continues(&PathBuf::from(destination), &manifest, &sender))).await
         })
         .await
     }

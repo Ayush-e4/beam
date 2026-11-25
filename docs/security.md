@@ -78,8 +78,9 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
 
 - Every offer says whether it comes from a trusted device; offers from unknown devices always
   need the person's approval.
-- The one exception: an offer that continues a transfer the person already accepted, from the
-  same device (the same authenticated key), unfinished on disk. Progress is kept per sending
+- The one exception: an offer that continues a transfer the person already accepted, of the
+  same files (the same manifest fingerprint) from the same device (the same authenticated
+  key), unfinished on disk. Reusing a transfer ID for other files always asks again. Progress is kept per sending
   key, so another device can neither continue nor add to it. Unfinished transfers are deleted
   after 7 days without progress.
 - Unknown offers are limited to 5 per address per minute; over the limit they are declined as
