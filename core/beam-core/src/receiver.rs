@@ -117,12 +117,13 @@ impl Receiver {
     }
 
     /// Resets per-connection state. The sender restarts the pack stream on every connection,
-    /// sending only the small files not yet recorded.
+    /// sending only the small files not yet recorded. Empty files are never sent: they have no
+    /// chunks, so they count as received from the start and are created when publishing.
     pub fn begin_session(&mut self) {
         self.pack_next = 0;
         self.unpacker = Unpacker::new(&self.manifest);
         for item in self.manifest.items() {
-            let done = item.size > 0 && self.is_item_done(item.item_id);
+            let done = self.is_item_done(item.item_id);
             if done || !self.selected.contains(&item.item_id) {
                 self.unpacker.skip(item.item_id);
             }

@@ -15,6 +15,14 @@ to `master` unless all checks pass.
   Run locally with `cargo +nightly fuzz run <target>`.
 - **Loopback integration tests:** two in-process peers over QUIC and TCP, with injected packet
   loss, latency and disconnects.
+  - `tests/transfer_loopback.rs`: whole transfers, rejection, cancellation, a lost `ACCEPT`, a
+    lost "done".
+  - `tests/m1_exit_tcp.rs` / `tests/m1_exit_quic.rs` (M1 exit): a large file, 10,000 small
+    files and a selection survive repeated cuts (TCP: cuts on writes or reads, often
+    mid-record, plus stalls; QUIC: 1–5 % loss, reordering and a link that dies). Each must end
+    byte-identical with no duplicates, resuming from the journal every time.
+  - The 1 GiB scenarios are `#[ignore]`d in debug runs and run in release in the `m1-exit` CI
+    job: `cargo test --release --test m1_exit_tcp --test m1_exit_quic -- --ignored`.
 - `clippy` with warnings as errors; `rustfmt` check.
 
 ### Android app

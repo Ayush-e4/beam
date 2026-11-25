@@ -41,10 +41,14 @@ fn reasons_round_trip_and_unknown_ones_fail() {
 #[test]
 fn resume_and_ack_round_trip() {
     let have = vec![range(1, 0..4), range(2, 7..8), range(PACK_ITEM_ID, 0..1)];
-    assert_eq!(
-        decode_resume(&encode_resume(ID, &have).unwrap()).unwrap(),
-        (ID, have.clone())
-    );
+    for items in [vec![], vec![1, 2]] {
+        let resume = Resume {
+            transfer_id: ID,
+            items,
+            have: have.clone(),
+        };
+        assert_eq!(Resume::decode(&resume.encode().unwrap()).unwrap(), resume);
+    }
     assert_eq!(decode_ack(&encode_ack(&have).unwrap()).unwrap(), have);
     assert_eq!(decode_ack(&encode_ack(&[]).unwrap()).unwrap(), vec![]);
 }
@@ -116,7 +120,7 @@ proptest! {
     fn decoders_never_panic(payload in prop::collection::vec(any::<u8>(), 0..300)) {
         let _ = Accept::decode(&payload);
         let _ = decode_reason(&payload);
-        let _ = decode_resume(&payload);
+        let _ = Resume::decode(&payload);
         let _ = decode_ack(&payload);
         let _ = ChunkHeader::decode(&payload);
     }

@@ -1,9 +1,14 @@
 //! The receiving side of [`crate::transfer`].
 //!
 //! [`receive_transfer`] answers with `ACCEPT`, or `RESUME` when the [`Receiver`] recovered
-//! earlier progress, then verifies and writes chunks. It checkpoints and acknowledges every
-//! [`ACK_EVERY_BYTES`], every [`ACK_INTERVAL`] while data is unacknowledged, and as soon as all
-//! expected data has arrived, so the sender's window never stalls.
+//! earlier progress, then verifies and writes chunks. It checkpoints and acknowledges by volume,
+//! every [`ACK_INTERVAL`] while data is unacknowledged, and as soon as all expected data has
+//! arrived, so the sender's window never stalls.
+//!
+//! The volume step starts at [`FIRST_ACK_BYTES`] on every connection and doubles up to
+//! [`ACK_EVERY_BYTES`]. Only checkpointed data survives a drop, so a link that keeps dying after
+//! a few megabytes still makes progress, while a stable link quickly reaches the larger step and
+//! syncs to disk less often.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -13,12 +18,14 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use super::{TRANSFER_STREAM, blocking, closed, fail_with_cancel, recv_frame, unexpected};
 use crate::frame::{Frame, FrameType};
 use crate::manifest::{Manifest, TransferId};
-use crate::messages::{Accept, Reason, encode_ack, encode_reason, encode_resume};
+use crate::messages::{Accept, ChunkRange, Reason, Resume, encode_ack, encode_reason};
 use crate::offer::OfferAssembler;
 use crate::{BeamError, Connection, Receiver, Result};
 
-/// Acknowledge at least this often by volume (8 MiB, well under the sender's window).
+/// Largest volume step between acknowledgements (8 MiB, well under the sender's window).
 pub const ACK_EVERY_BYTES: u64 = 8 * 1024 * 1024;
+/// Volume step for the first acknowledgement on each connection (1 MiB).
+pub const FIRST_ACK_BYTES: u64 = 1024 * 1024;
 /// Acknowledge at least this often by time while data is unacknowledged.
 pub const ACK_INTERVAL: Duration = Duration::from_millis(250);
 /// How long to wait for the sender to close after the final "done" `ACK`.
@@ -87,22 +94,68 @@ pub async fn receive_transfer<S: AsyncRead + AsyncWrite + Unpin>(
     }
     .await;
     let paths = fail_with_cancel(conn, transfer_id, result).await?;
+    // The files are published; from here on a failure no longer changes the outcome.
+    say_done(conn).await;
+    Ok(paths)
+}
 
-    // The files are published; from here on a failure no longer matters to the outcome.
-    let done = Frame::new(FrameType::Ack, TRANSFER_STREAM, encode_ack(&[])?)?;
+/// Answers a repeated offer for a transfer this device already received and published: it
+/// reports every chunk as received, then `done`, so the sender finishes without resending.
+/// Use it when the connection dropped after publishing but before the sender saw `done`.
+///
+/// # Errors
+///
+/// Returns a network error if sending the reply fails.
+pub async fn confirm_received<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
+    manifest: &Manifest,
+) -> Result<()> {
+    let mut have = Vec::new();
+    for item in manifest.items().iter().filter(|item| item.size > 0) {
+        have.push(ChunkRange {
+            item_id: item.item_id,
+            chunks: 0..item.layout()?.chunk_count(),
+        });
+    }
+    let resume = Resume {
+        transfer_id: manifest.transfer_id(),
+        items: Vec::new(),
+        have,
+    };
+    conn.send(&Frame::new(
+        FrameType::Resume,
+        TRANSFER_STREAM,
+        resume.encode()?,
+    )?)
+    .await?;
+    say_done(conn).await;
+    Ok(())
+}
+
+/// Sends the final empty `ACK`, then waits briefly for the sender to close. Failures are
+/// ignored: the files are already published, and a sender that misses `done` reconnects and
+/// is answered by [`confirm_received`].
+async fn say_done<S: AsyncRead + AsyncWrite + Unpin>(conn: &mut Connection<S>) {
+    let Ok(done) = encode_ack(&[]).and_then(|ack| Frame::new(FrameType::Ack, TRANSFER_STREAM, ack))
+    else {
+        return;
+    };
     if conn.send(&done).await.is_ok() {
         let drain = async { while let Ok(Some(_)) = conn.recv().await {} };
         let _ = tokio::time::timeout(CLOSE_GRACE, drain).await;
     }
     let _ = conn.close().await;
-    Ok(paths)
 }
 
 fn reply_for(receiver: &Receiver) -> Result<Frame> {
     let transfer_id = receiver.manifest().transfer_id();
     if receiver.resumed() {
-        let payload = encode_resume(transfer_id, &receiver.have())?;
-        return Frame::new(FrameType::Resume, TRANSFER_STREAM, payload);
+        let resume = Resume {
+            transfer_id,
+            items: receiver.accepted_items(),
+            have: receiver.have(),
+        };
+        return Frame::new(FrameType::Resume, TRANSFER_STREAM, resume.encode()?);
     }
     let accept = Accept {
         transfer_id,
@@ -117,13 +170,17 @@ async fn receive_chunks<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<Vec<PathBuf>> {
     let transfer_id = receiver.manifest().transfer_id();
     let mut unacked: u64 = 0;
+    let mut ack_every = FIRST_ACK_BYTES;
     let mut last_ack = Instant::now();
     loop {
-        let due = unacked >= ACK_EVERY_BYTES
+        let due = unacked >= ack_every
             || (unacked > 0 && last_ack.elapsed() >= ACK_INTERVAL)
             || receiver.has_all_data();
         if due {
             receiver = checkpoint(conn, receiver).await?;
+            if unacked >= ack_every {
+                ack_every = (ack_every * 2).min(ACK_EVERY_BYTES);
+            }
             (unacked, last_ack) = (0, Instant::now());
             if receiver.is_complete() {
                 return blocking(move || receiver.finish()).await;

@@ -4,7 +4,8 @@
 //!
 //! 1. [`Sender::new`] with a [`PreparedTransfer`], then send its manifest as an `OFFER`.
 //! 2. On every connection, after the receiver's reply: [`Sender::accept`] for `ACCEPT`, or
-//!    [`Sender::resume`] for `RESUME`. Either resets what this connection still has to send.
+//!    [`Sender::resume`] for `RESUME`. Both carry the selection, and either resets what this
+//!    connection still has to send.
 //! 3. While [`Sender::can_send`]: send [`Sender::next_chunk`] as a `CHUNK` frame. Small files go
 //!    first, in the pack stream, then large files chunk by chunk.
 //! 4. Feed each `ACK` to [`Sender::handle_ack`], which frees room in the flow-control window.
@@ -17,7 +18,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use crate::chunk_set::ChunkSet;
 use crate::manifest::{Manifest, TransferId};
-use crate::messages::{Accept, ChunkRange};
+use crate::messages::{Accept, ChunkRange, Resume};
 use crate::pack::is_packable;
 use crate::sender_files::PreparedTransfer;
 use crate::sender_pack::PackQueue;
@@ -32,7 +33,7 @@ pub const DEFAULT_WINDOW: u64 = 64 * 1024 * 1024;
 pub struct Sender {
     prepared: PreparedTransfer,
     window: u64,
-    /// Items the receiver accepted; kept across connections because `RESUME` does not repeat it.
+    /// Items the receiver selected, from its latest `ACCEPT` or `RESUME`.
     selected: HashSet<u32>,
     /// Chunks the receiver reported verified when this connection began.
     have: HashMap<u32, ChunkSet>,
@@ -90,32 +91,23 @@ impl Sender {
     /// unknown item.
     pub fn accept(&mut self, accept: &Accept) -> Result<()> {
         self.check_transfer(accept.transfer_id)?;
-        let manifest = self.prepared.manifest();
-        if let Some(unknown) = accept.items.iter().find(|id| manifest.item(**id).is_none()) {
-            return Err(BeamError::Malformed(format!(
-                "receiver accepted unknown item {unknown}"
-            )));
-        }
-        self.selected = if accept.items.is_empty() {
-            manifest.items().iter().map(|i| i.item_id).collect()
-        } else {
-            accept.items.iter().copied().collect()
-        };
+        self.select(&accept.items)?;
         self.begin_session(HashMap::new());
         Ok(())
     }
 
-    /// Starts a connection after the receiver asked to resume with the chunks it already has.
-    /// The selection from the earlier `ACCEPT` still applies.
+    /// Starts a connection after the receiver asked to resume. The reply repeats the selection
+    /// and lists the chunks the receiver already has.
     ///
     /// # Errors
     ///
-    /// Returns [`BeamError::Malformed`] if the reply is for another transfer or lists chunks
-    /// the manifest does not have.
-    pub fn resume(&mut self, transfer_id: TransferId, have: &[ChunkRange]) -> Result<()> {
-        self.check_transfer(transfer_id)?;
+    /// Returns [`BeamError::Malformed`] if the reply is for another transfer, names an unknown
+    /// item, or lists chunks the manifest does not have.
+    pub fn resume(&mut self, resume: &Resume) -> Result<()> {
+        self.check_transfer(resume.transfer_id)?;
+        self.select(&resume.items)?;
         let mut sets: HashMap<u32, ChunkSet> = HashMap::new();
-        for range in have {
+        for range in &resume.have {
             let item = self
                 .prepared
                 .manifest()
@@ -215,6 +207,22 @@ impl Sender {
             && self.in_flight.is_empty()
     }
 
+    /// Sets the items to send from a reply; empty means every item.
+    fn select(&mut self, items: &[u32]) -> Result<()> {
+        let manifest = self.prepared.manifest();
+        if let Some(unknown) = items.iter().find(|id| manifest.item(**id).is_none()) {
+            return Err(BeamError::Malformed(format!(
+                "receiver selected unknown item {unknown}"
+            )));
+        }
+        self.selected = if items.is_empty() {
+            manifest.items().iter().map(|i| i.item_id).collect()
+        } else {
+            items.iter().copied().collect()
+        };
+        Ok(())
+    }
+
     fn check_transfer(&self, transfer_id: TransferId) -> Result<()> {
         if transfer_id == self.prepared.manifest().transfer_id() {
             Ok(())
@@ -224,13 +232,14 @@ impl Sender {
     }
 
     /// Plans this connection: small files not yet received go in the pack, large files with
-    /// missing chunks follow in manifest order.
+    /// missing chunks follow in manifest order. Empty files are never sent; the receiver
+    /// creates them when it publishes.
     fn begin_session(&mut self, have: HashMap<u32, ChunkSet>) {
         let done = |id: u32| have.get(&id).is_some_and(ChunkSet::is_complete);
         let mut small = Vec::new();
         let mut large = VecDeque::new();
         for item in self.prepared.manifest().items() {
-            if !self.selected.contains(&item.item_id) || (item.size > 0 && done(item.item_id)) {
+            if !self.selected.contains(&item.item_id) || item.size == 0 || done(item.item_id) {
                 continue;
             }
             if is_packable(item) {

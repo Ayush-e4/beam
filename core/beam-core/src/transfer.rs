@@ -6,6 +6,9 @@
 //!   [`receive_transfer`] (or [`reject_offer`]) answers and receives (see [`receiver_side`]).
 //! - **Done:** once every file is verified and published, the receiver sends an empty `ACK`.
 //!   That tells the sender the files landed, not only that their chunks were acknowledged.
+//! - **Already done:** if the connection drops after the receiver published but before the
+//!   sender saw `done`, the sender reconnects and offers again. The receiving app, which knows
+//!   that transfer finished, answers with [`confirm_received`] instead of receiving it twice.
 //! - **Failures:** a side that fails for a reason other than the network sends `CANCEL`
 //!   (failed) before giving up. After a dropped connection, reconnect and call again: the sender
 //!   with the same [`Sender`], the receiver with a [`crate::Receiver`] reopened from its journal,
@@ -24,12 +27,12 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::frame::{Frame, FrameType};
 use crate::manifest::TransferId;
-use crate::messages::{Accept, Reason, decode_ack, decode_reason, decode_resume, encode_reason};
+use crate::messages::{Accept, Reason, Resume, decode_ack, decode_reason, encode_reason};
 use crate::offer::encode_offer;
 use crate::{BeamError, Connection, ErrorCategory, Result, Sender};
 
 pub mod receiver_side;
-pub use receiver_side::{read_offer, receive_transfer, reject_offer};
+pub use receiver_side::{confirm_received, read_offer, receive_transfer, reject_offer};
 
 /// Stream ID used for every transfer frame (one transfer runs per connection).
 pub const TRANSFER_STREAM: u32 = 1;
@@ -87,10 +90,7 @@ async fn await_reply<S: AsyncRead + AsyncWrite + Unpin>(
     let frame = recv_frame(conn).await?;
     match frame.frame_type {
         FrameType::Accept => lock(sender).accept(&Accept::decode(&frame.payload)?)?,
-        FrameType::Resume => {
-            let (id, have) = decode_resume(&frame.payload)?;
-            lock(sender).resume(id, &have)?;
-        }
+        FrameType::Resume => lock(sender).resume(&Resume::decode(&frame.payload)?)?,
         FrameType::Reject => return reason_for(transfer_id, &frame.payload).map(Some),
         _ => return Err(unexpected(&frame, transfer_id)),
     }
@@ -104,16 +104,16 @@ async fn stream_chunks<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<()> {
     let mut exhausted = false;
     loop {
-        while let Some(frame) = try_recv(conn).await? {
-            handle_ack(sender, &frame, transfer_id)?;
-        }
-        let (complete, can_send) = {
-            let s = lock(sender);
-            (s.is_complete(), s.can_send())
-        };
-        if complete {
+        if lock(sender).is_complete() {
             return Ok(());
         }
+        while let Some(frame) = try_recv(conn).await? {
+            handle_ack(sender, &frame, transfer_id)?;
+            if lock(sender).is_complete() {
+                return Ok(());
+            }
+        }
+        let can_send = lock(sender).can_send();
         if can_send && !exhausted {
             let shared = Arc::clone(sender);
             match blocking(move || lock(&shared).next_chunk()).await? {

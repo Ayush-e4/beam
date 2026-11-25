@@ -33,3 +33,22 @@ jobs:
         run: cargo clippy --all-targets --locked -- -D warnings
       - name: Test
         run: cargo test --locked
+
+  m1-exit:
+    # Fault-injection transfers of a 1 GiB file over TCP and lossy QUIC, in release mode. The
+    # smaller fault scenarios already run in `check`.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+          key: release
+      - name: 1 GiB transfers with injected faults
+        run: cargo test --release --locked --test m1_exit_tcp --test m1_exit_quic -- --ignored --nocapture

@@ -121,7 +121,7 @@ One transfer runs per connection at a time. All integers are little-endian; a ra
 | -------- | ------------------------------------------------------------------------------------- |
 | `ACCEPT` | `transfer_id` · count · item IDs (count 0 = every item)                               |
 | `REJECT` | `transfer_id` · reason (declined, no space, busy, failed)                             |
-| `RESUME` | `transfer_id` · count · ranges the receiver already verified                          |
+| `RESUME` | `transfer_id` · count · item IDs (as in `ACCEPT`) · count · ranges already verified   |
 | `ACK`    | count · ranges newly verified                                                         |
 | `CANCEL` | `transfer_id` · reason                                                                |
 | `CHUNK`  | item ID · chunk index · encoding · decoded length · chunk hash · optional root · body |
@@ -196,9 +196,10 @@ compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
 - The receiver keeps a small journal of verified ranges per transfer.
 - On reconnect, the sender sends `OFFER` with the same `transfer_id`; the receiver answers
   with `RESUME` listing verified ranges, and only missing chunks are sent.
-- `RESUME` does not repeat the selection; the sender keeps the one from the first `ACCEPT`.
+- `RESUME` repeats the selection, because the sender may never have seen the `ACCEPT` (it was
+  lost in a drop) or may have restarted since.
 - Small files not yet verified go again in a fresh pack stream (piece index back at 0). Empty
-  files have nothing to journal, so they are in the pack on every connection.
+  files are never sent: they have no chunks, and the receiver creates them when publishing.
 - A large file's root hash covers every chunk hash. If the receiver still needs the last chunk,
   the sender re-reads and hashes the chunks it skips; if the receiver already has the last
   chunk, it also has the root, and only the missing chunks are read.
@@ -216,13 +217,17 @@ compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
 1. Sender: `OFFER` (one or more frames). Receiver: `ACCEPT`, `RESUME` (it has earlier progress)
    or `REJECT`.
 2. Sender streams `CHUNK`s while reading `ACK`s. The receiver makes data durable and acks it
-   every 8 MiB, every 250 ms while anything is unacknowledged, and as soon as all expected
-   data has arrived.
+   by volume (1 MiB at the start of each connection, doubling to 8 MiB), every 250 ms while
+   anything is unacknowledged, and as soon as all expected data has arrived. Only acked data
+   survives a drop, so the small first steps let a link that keeps dying still make progress.
 3. When every file is verified and published, the receiver sends an **empty `ACK`** ("done").
    The sender closes; the receiver closes once it sees that (or after 5 s).
 4. A side that fails for any reason other than the network sends `CANCEL` (failed) first. A
    dropped connection just ends; both sides reconnect and the receiver answers the repeated
    `OFFER` with `RESUME`.
+5. If the link drops after the receiver published but before the sender saw `done`, the sender
+   offers again. The receiver, which remembers finished transfer IDs, answers `RESUME` listing
+   every chunk, then `done`; nothing is sent twice and no duplicate files appear.
 
 All transfer frames use stream ID 1 (one transfer per connection). File I/O runs off the async
 runtime on both sides (`beam-core/src/transfer.rs`).
