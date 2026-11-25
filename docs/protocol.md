@@ -121,7 +121,7 @@ One transfer runs per connection at a time. All integers are little-endian; a ra
 | -------- | ------------------------------------------------------------------------------------- |
 | `ACCEPT` | `transfer_id` · count · item IDs (count 0 = every item)                               |
 | `REJECT` | `transfer_id` · reason (declined, no space, busy, failed)                             |
-| `RESUME` | `transfer_id` · count · item IDs (as in `ACCEPT`) · count · ranges already verified  |
+| `RESUME` | `transfer_id` · count · item IDs (as in `ACCEPT`) · count · ranges already verified   |
 | `ACK`    | count · ranges newly verified                                                         |
 | `CANCEL` | `transfer_id` · reason                                                                |
 | `CHUNK`  | item ID · chunk index · encoding · decoded length · chunk hash · optional root · body |
