@@ -8,9 +8,32 @@ use crate::integrity::{RootHasher, chunk_hash};
 use crate::manifest::ManifestItem;
 use crate::messages::ChunkRange;
 use crate::pack::is_packable;
+use crate::progress::{Progress, bytes_held};
 use crate::{BeamError, Result};
 
 impl Receiver {
+    /// Bytes verified and written so far (including earlier runs), for showing progress from
+    /// another task.
+    #[must_use]
+    pub fn progress(&self) -> Progress {
+        self.progress.clone()
+    }
+
+    /// Restarts the count from what the journal holds for the selected items.
+    pub(super) fn reset_progress(&self) {
+        let selected = || {
+            let manifest = &self.manifest;
+            manifest
+                .items()
+                .iter()
+                .filter(|i| self.selected.contains(&i.item_id))
+        };
+        let held = selected()
+            .map(|i| bytes_held(i, self.journal.progress(i.item_id)))
+            .sum();
+        self.progress.reset(held, selected().map(|i| i.size).sum());
+    }
+
     /// Verified chunks already on disk, for a `RESUME` reply.
     #[must_use]
     pub fn have(&self) -> Vec<ChunkRange> {

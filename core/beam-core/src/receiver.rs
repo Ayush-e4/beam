@@ -26,6 +26,7 @@ use crate::journal::Journal;
 use crate::manifest::{MAX_CHUNK_SIZE, Manifest, ManifestItem, PACK_ITEM_ID};
 use crate::messages::{ChunkHeader, ChunkRange};
 use crate::pack::{Unpacker, is_packable};
+use crate::progress::Progress;
 use crate::receiver_store::{STAGING_DIR, Store};
 use crate::{BeamError, Result};
 
@@ -46,6 +47,7 @@ pub struct Receiver {
     /// Chunks still expected this session. Only a hint for when to checkpoint: a misbehaving
     /// sender can make it reach zero early, which costs one extra checkpoint and nothing else.
     remaining: u64,
+    progress: Progress,
 }
 
 impl Receiver {
@@ -99,6 +101,7 @@ impl Receiver {
             unpacker,
             pack_next: 0,
             remaining: 0,
+            progress: Progress::default(),
         };
         receiver.begin_session();
         Ok(receiver)
@@ -142,6 +145,7 @@ impl Receiver {
                 total.saturating_sub(have)
             })
             .sum();
+        self.reset_progress();
     }
 
     /// Verifies one `CHUNK` frame payload and writes its data to staging.
@@ -193,6 +197,7 @@ impl Receiver {
             *slot = Some(header.hash);
         }
         self.pending.push((item.item_id, header.index));
+        self.progress.add(range.end - range.start);
         self.remaining = self.remaining.saturating_sub(1);
         self.dirty.insert(item.item_id);
         Ok(())
@@ -218,6 +223,7 @@ impl Receiver {
             self.store.write_whole(file.item_id, &file.data)?;
             if !file.data.is_empty() {
                 self.pending.push((file.item_id, 0));
+                self.progress.add(file.data.len() as u64);
                 self.remaining = self.remaining.saturating_sub(1);
             }
             self.dirty.insert(file.item_id);

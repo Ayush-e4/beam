@@ -20,6 +20,7 @@ use crate::chunk_set::ChunkSet;
 use crate::manifest::{Manifest, TransferId};
 use crate::messages::{Accept, ChunkRange, Resume};
 use crate::pack::is_packable;
+use crate::progress::{Progress, bytes_held};
 use crate::sender_files::PreparedTransfer;
 use crate::sender_pack::PackQueue;
 use crate::sender_stream::FileStream;
@@ -44,6 +45,7 @@ pub struct Sender {
     in_flight: BTreeMap<(u32, u64), u64>,
     in_flight_bytes: u64,
     started: bool,
+    progress: Progress,
 }
 
 impl Sender {
@@ -74,7 +76,14 @@ impl Sender {
             in_flight: BTreeMap::new(),
             in_flight_bytes: 0,
             started: false,
+            progress: Progress::default(),
         }
+    }
+
+    /// Bytes the receiver has confirmed, for showing progress from another task.
+    #[must_use]
+    pub fn progress(&self) -> Progress {
+        self.progress.clone()
     }
 
     /// The manifest to offer.
@@ -186,6 +195,7 @@ impl Sender {
             for key in acked {
                 if let Some(size) = self.in_flight.remove(&key) {
                     self.in_flight_bytes = self.in_flight_bytes.saturating_sub(size);
+                    self.progress.add(size);
                 }
             }
         }
@@ -250,6 +260,17 @@ impl Sender {
                 large.push_back(item.item_id);
             }
         }
+        let selected = || {
+            let manifest = self.prepared.manifest();
+            manifest
+                .items()
+                .iter()
+                .filter(|i| self.selected.contains(&i.item_id))
+        };
+        let held = selected()
+            .map(|i| bytes_held(i, have.get(&i.item_id)))
+            .sum();
+        self.progress.reset(held, selected().map(|i| i.size).sum());
         self.pack = PackQueue::new(small);
         self.large = large;
         self.current = None;
