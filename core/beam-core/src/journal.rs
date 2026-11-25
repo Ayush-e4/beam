@@ -164,21 +164,11 @@ impl Journal {
     }
 
     fn header(&self) -> [u8; HEADER_LEN] {
-        let mut bytes = [0u8; HEADER_LEN];
-        bytes[..8].copy_from_slice(MAGIC);
-        bytes[8..40].copy_from_slice(&self.fingerprint);
-        let checksum = self.checksum(&bytes[..40]);
-        bytes[40..].copy_from_slice(&checksum);
-        bytes
+        header_for(&self.fingerprint)
     }
 
     fn checksum(&self, data: &[u8]) -> [u8; 8] {
-        let mut hasher = blake3::Hasher::new_derive_key(CHECKSUM_CONTEXT);
-        hasher.update(&self.fingerprint);
-        hasher.update(data);
-        let mut out = [0u8; 8];
-        out.copy_from_slice(&hasher.finalize().as_bytes()[..8]);
-        out
+        checksum_with(&self.fingerprint, data)
     }
 
     fn reset(&mut self) -> Result<()> {
@@ -197,6 +187,32 @@ impl Journal {
         self.file.set_len(len).map_err(BeamError::storage)?;
         self.file.sync_all().map_err(BeamError::storage)
     }
+}
+
+/// Whether the journal at `path` was written for `manifest`, so its progress applies.
+pub(crate) fn belongs_to(path: &Path, manifest: &Manifest) -> bool {
+    let mut header = [0u8; HEADER_LEN];
+    File::open(path)
+        .and_then(|mut file| file.read_exact(&mut header))
+        .is_ok_and(|()| header == header_for(&manifest.fingerprint()))
+}
+
+fn header_for(fingerprint: &Hash) -> [u8; HEADER_LEN] {
+    let mut bytes = [0u8; HEADER_LEN];
+    bytes[..8].copy_from_slice(MAGIC);
+    bytes[8..40].copy_from_slice(fingerprint);
+    let checksum = checksum_with(fingerprint, &bytes[..40]);
+    bytes[40..].copy_from_slice(&checksum);
+    bytes
+}
+
+fn checksum_with(fingerprint: &Hash, data: &[u8]) -> [u8; 8] {
+    let mut hasher = blake3::Hasher::new_derive_key(CHECKSUM_CONTEXT);
+    hasher.update(fingerprint);
+    hasher.update(data);
+    let mut out = [0u8; 8];
+    out.copy_from_slice(&hasher.finalize().as_bytes()[..8]);
+    out
 }
 
 fn empty_progress(manifest: &Manifest) -> Result<HashMap<u32, ChunkSet>> {
