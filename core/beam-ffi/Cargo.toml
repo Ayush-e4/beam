@@ -17,5 +17,9 @@ name = "beam_ffi"
 [dependencies]
 beam-core = { path = "../beam-core" }
 thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "net", "sync", "time", "macros"] }
 uniffi = "0.32.2"
 zeroize = "1.9.2"
+
+[dev-dependencies]
+tempfile = "3.27.0"

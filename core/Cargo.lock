@@ -184,7 +184,9 @@ name = "beam-ffi"
 version = "0.1.0"
 dependencies = [
  "beam-core",
+ "tempfile",
  "thiserror",
+ "tokio",
  "uniffi",
  "zeroize",
 ]

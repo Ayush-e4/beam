@@ -45,6 +45,12 @@ pub enum BeamError {
         /// What went wrong, for logs.
         detail: String,
     },
+    /// A bug in the engine (a task panicked). Worth reporting; retrying rarely helps.
+    #[error("internal: {detail}")]
+    Internal {
+        /// What went wrong, for logs.
+        detail: String,
+    },
 }
 
 impl From<beam_core::BeamError> for BeamError {

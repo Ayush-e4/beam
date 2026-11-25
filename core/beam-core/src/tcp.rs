@@ -3,24 +3,44 @@
 //! Nagle's algorithm is disabled because the session already batches data into large records,
 //! and small control frames (acks, pings) should leave immediately.
 
+use std::io;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::timeout;
 
 use crate::connection::Connection;
 use crate::handshake::Handshake;
 use crate::{BeamError, Result};
 
+/// How long an accepted connection has to complete the handshake.
+pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Connects to `addr` and runs `handshake` as the initiator.
 ///
 /// # Errors
 ///
-/// Returns a network error if the peer is unreachable, and a crypto error if it fails
-/// authentication.
+/// Returns a network error if the peer is unreachable or connecting and the handshake take
+/// longer than [`HANDSHAKE_TIMEOUT`], and a crypto error if it fails authentication.
 pub async fn connect(addr: SocketAddr, handshake: Handshake) -> Result<Connection<TcpStream>> {
-    let stream = TcpStream::connect(addr).await.map_err(BeamError::network)?;
-    stream.set_nodelay(true).map_err(BeamError::network)?;
-    Connection::establish(stream, handshake).await
+    within_handshake_timeout(async {
+        let stream = TcpStream::connect(addr).await.map_err(BeamError::network)?;
+        stream.set_nodelay(true).map_err(BeamError::network)?;
+        Connection::establish(stream, handshake).await
+    })
+    .await
+}
+
+/// Fails with a network error if `work` takes longer than [`HANDSHAKE_TIMEOUT`]: a peer that
+/// accepts the socket but never answers must not hang the caller.
+async fn within_handshake_timeout<T>(work: impl Future<Output = Result<T>>) -> Result<T> {
+    timeout(HANDSHAKE_TIMEOUT, work).await.map_err(|_| {
+        BeamError::network(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "handshake timed out",
+        ))
+    })?
 }
 
 /// Listens for incoming Beam connections over TCP.
@@ -48,18 +68,21 @@ impl TcpAcceptor {
         self.listener.local_addr().map_err(BeamError::network)
     }
 
-    /// Accepts the next connection and runs `handshake` as the responder.
+    /// Accepts the next connection and runs `handshake` as the responder, giving the peer
+    /// [`HANDSHAKE_TIMEOUT`] to complete it so an idle connection can't block the listener.
     ///
     /// # Errors
     ///
-    /// Returns a network error if accepting fails, and a crypto error if the peer fails
-    /// authentication.
+    /// Returns a network error if accepting fails or the handshake times out, and a crypto
+    /// error if the peer fails authentication.
     pub async fn accept(
         &self,
         handshake: Handshake,
     ) -> Result<(Connection<TcpStream>, SocketAddr)> {
         let (stream, from) = self.listener.accept().await.map_err(BeamError::network)?;
         stream.set_nodelay(true).map_err(BeamError::network)?;
-        Ok((Connection::establish(stream, handshake).await?, from))
+        let established =
+            within_handshake_timeout(Connection::establish(stream, handshake)).await?;
+        Ok((established, from))
     }
 }
