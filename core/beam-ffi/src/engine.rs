@@ -11,6 +11,7 @@ use tokio::runtime::{Builder, Runtime};
 
 use crate::incoming::Listener;
 use crate::outgoing::OutgoingTransfer;
+use crate::pairing::{PairedDevice, PairingHost, pair_with};
 use crate::runtime::{blocking, run};
 use crate::{BeamError, DeviceIdentity, SessionCipher};
 
@@ -114,6 +115,37 @@ impl Engine {
             Listener::new(task, acceptor, identity, cipher, finished)
         })
         .await
+    }
+}
+
+#[uniffi::export]
+impl Engine {
+    /// Starts showing a pairing code: listens on a free port on every interface. Use
+    /// [`PairingHost::code`] for the QR text and [`PairingHost::wait_for_device`] to pair.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Network`] if no port can be opened.
+    pub async fn host_pairing(&self, cipher: SessionCipher) -> Result<Arc<PairingHost>, BeamError> {
+        let handle = self.handle()?;
+        let identity = self.identity.clone();
+        let task = handle.clone();
+        run(&handle, async move {
+            let acceptor = TcpAcceptor::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0))).await?;
+            PairingHost::new(task, acceptor, identity, cipher)
+        })
+        .await
+    }
+
+    /// Pairs with the device showing the scanned `code`, introducing this one as `name`.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Protocol`] if `code` isn't a Beam pairing code (the message says why),
+    /// [`BeamError::Network`] if the device can't be reached, and [`BeamError::Crypto`] if the
+    /// device that answered isn't the one in the code.
+    pub async fn pair_with(&self, code: String, name: String) -> Result<PairedDevice, BeamError> {
+        pair_with(&self.handle()?, self.identity.clone(), code, name).await
     }
 }
 

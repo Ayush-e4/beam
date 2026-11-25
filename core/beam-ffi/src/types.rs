@@ -23,6 +23,15 @@ impl From<SessionCipher> for Cipher {
     }
 }
 
+impl From<Cipher> for SessionCipher {
+    fn from(cipher: Cipher) -> Self {
+        match cipher {
+            Cipher::AesGcm => Self::AesGcm,
+            Cipher::ChaChaPoly => Self::ChaChaPoly,
+        }
+    }
+}
+
 /// Why a receiver declined an offer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum DeclineReason {
