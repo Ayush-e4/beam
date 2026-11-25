@@ -3,15 +3,16 @@
 use std::collections::VecDeque;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use beam_core::tcp::TcpAcceptor;
-use beam_core::{Sender, TransferId, prepare_transfer};
+use beam_core::{DiscoveryKey, Sender, TransferId, prepare_transfer};
 use tokio::runtime::{Builder, Runtime};
 
 use crate::incoming::Listener;
 use crate::outgoing::OutgoingTransfer;
-use crate::pairing::{PairedDevice, PairingHost, pair_with};
+use crate::pairing::{Local, PairedDevice, PairingHost, pair_with};
 use crate::runtime::{blocking, run};
 use crate::{BeamError, DeviceIdentity, SessionCipher};
 
@@ -48,6 +49,7 @@ pub struct Engine {
     runtime: Option<Runtime>,
     identity: Arc<DeviceIdentity>,
     finished: Arc<Finished>,
+    discovery_generation: AtomicU32,
 }
 
 #[uniffi::export]
@@ -70,7 +72,15 @@ impl Engine {
             runtime: Some(runtime),
             identity,
             finished: Arc::default(),
+            discovery_generation: AtomicU32::new(0),
         }))
+    }
+
+    /// Sets the discovery key generation the app keeps (0 until a trusted device is removed;
+    /// then one more). Devices paired from now on get the key for this generation.
+    pub fn set_discovery_generation(&self, generation: u32) {
+        self.discovery_generation
+            .store(generation, Ordering::Relaxed);
     }
 
     /// Reads the picked files and folders and prepares a transfer. Keep the result and call
@@ -129,10 +139,11 @@ impl Engine {
     pub async fn host_pairing(&self, cipher: SessionCipher) -> Result<Arc<PairingHost>, BeamError> {
         let handle = self.handle()?;
         let identity = self.identity.clone();
+        let discovery_key = self.discovery_key();
         let task = handle.clone();
         run(&handle, async move {
             let acceptor = TcpAcceptor::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0))).await?;
-            PairingHost::new(task, acceptor, identity, cipher)
+            PairingHost::new(task, acceptor, identity, discovery_key, cipher)
         })
         .await
     }
@@ -145,11 +156,20 @@ impl Engine {
     /// [`BeamError::Network`] if the device can't be reached, and [`BeamError::Crypto`] if the
     /// device that answered isn't the one in the code.
     pub async fn pair_with(&self, code: String, name: String) -> Result<PairedDevice, BeamError> {
-        pair_with(&self.handle()?, self.identity.clone(), code, name).await
+        let local = Local {
+            identity: self.identity.clone(),
+            discovery_key: self.discovery_key(),
+        };
+        pair_with(&self.handle()?, local, code, name).await
     }
 }
 
 impl Engine {
+    fn discovery_key(&self) -> DiscoveryKey {
+        let generation = self.discovery_generation.load(Ordering::Relaxed);
+        DiscoveryKey::derive(self.identity.keypair(), generation)
+    }
+
     fn handle(&self) -> Result<tokio::runtime::Handle, BeamError> {
         self.runtime
             .as_ref()

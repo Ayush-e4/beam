@@ -17,8 +17,14 @@ class TrustedDevicesTest {
 
     private val file get() = File(folder.root, "trust/trusted-devices.bin")
 
-    private fun device(n: Int, name: String = "Phone $n", at: Long = n.toLong()) =
-        TrustedDevice("id-$n", ByteArray(32) { n.toByte() }, name, SessionCipher.AES_GCM, at)
+    private fun device(n: Int, name: String = "Phone $n", at: Long = n.toLong()) = TrustedDevice(
+        "id-$n",
+        ByteArray(32) { n.toByte() },
+        name,
+        SessionCipher.AES_GCM,
+        discoveryKey = ByteArray(32) { (n + 100).toByte() },
+        pairedAtMillis = at
+    )
 
     @Test
     fun `devices survive a restart, newest first`() {
@@ -63,6 +69,13 @@ class TrustedDevicesTest {
         assertFalse(store.remove("id-1"))
         assertEquals(emptyList<TrustedDevice>(), TrustedDevices(file).all())
         assertFalse(File(file.path + ".tmp").exists())
+    }
+
+    @Test
+    fun `an older file format is an error`() {
+        TrustedDevices(file).add(device(1))
+        file.writeBytes(file.readBytes().also { it[0] = 1 })
+        assertThrows(IOException::class.java) { TrustedDevices(file).all() }
     }
 
     @Test

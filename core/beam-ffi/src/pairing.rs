@@ -4,7 +4,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use beam_core::tcp::{self, TcpAcceptor};
-use beam_core::{Connection, Handshake, Hello, PairingInvite, Role, exchange_hello};
+use beam_core::{Connection, DiscoveryKey, Handshake, Hello, PairingInvite, Role, exchange_hello};
 use tokio::net::TcpStream;
 use tokio::runtime::Handle;
 use tokio::task::JoinSet;
@@ -25,6 +25,15 @@ pub struct PairedDevice {
     pub cipher: SessionCipher,
     /// Six digits both screens can show, so people can confirm nobody sat in between.
     pub verification_code: String,
+    /// The key its discovery beacons are made with. Secret: store it with the device.
+    pub discovery_key: Vec<u8>,
+}
+
+/// This device, as pairing introduces it.
+#[derive(Debug, Clone)]
+pub(crate) struct Local {
+    pub(crate) identity: Arc<DeviceIdentity>,
+    pub(crate) discovery_key: DiscoveryKey,
 }
 
 /// Shows a pairing code and waits for one device to scan it and connect. Single use: once a
@@ -34,6 +43,7 @@ pub struct PairingHost {
     handle: Handle,
     acceptor: Arc<TcpAcceptor>,
     identity: Arc<DeviceIdentity>,
+    discovery_key: DiscoveryKey,
     invite: PairingInvite,
     spent: Arc<tokio::sync::Mutex<bool>>,
 }
@@ -49,6 +59,7 @@ impl PairingHost {
         handle: Handle,
         acceptor: TcpAcceptor,
         identity: Arc<DeviceIdentity>,
+        discovery_key: DiscoveryKey,
         cipher: SessionCipher,
     ) -> Result<Arc<Self>, BeamError> {
         let invite = PairingInvite::new(identity.keypair().public(), cipher.into(), Vec::new())?;
@@ -56,6 +67,7 @@ impl PairingHost {
             handle,
             acceptor: Arc::new(acceptor),
             identity,
+            discovery_key,
             invite,
             spent: Arc::default(),
         }))
@@ -103,6 +115,7 @@ impl PairingHost {
         let acceptor = self.acceptor.clone();
         let identity = self.identity.clone();
         let invite = self.invite.clone();
+        let hello = Hello::new(&name, self.discovery_key.clone());
         let spent = self.spent.clone();
         run(&self.handle, async move {
             let mut spent = spent.lock().await;
@@ -111,7 +124,6 @@ impl PairingHost {
                     detail: "this pairing code was already used".into(),
                 });
             }
-            let hello = Hello::new(&name);
             loop {
                 let handshake = Handshake::pairing_displayer(
                     identity.keypair(),
@@ -135,7 +147,7 @@ impl PairingHost {
 /// Scans `code` and pairs with the device showing it, introducing this device as `name`.
 pub(crate) async fn pair_with(
     handle: &Handle,
-    identity: Arc<DeviceIdentity>,
+    local: Local,
     code: String,
     name: String,
 ) -> Result<PairedDevice, BeamError> {
@@ -146,8 +158,9 @@ pub(crate) async fn pair_with(
         });
     }
     run(handle, async move {
-        let mut conn = connect_first(&identity, &invite).await?;
-        introduce(&mut conn, &Hello::new(&name), invite.cipher.into()).await
+        let mut conn = connect_first(&local.identity, &invite).await?;
+        let hello = Hello::new(&name, local.discovery_key);
+        introduce(&mut conn, &hello, invite.cipher.into()).await
     })
     .await
 }
@@ -198,6 +211,7 @@ async fn introduce(
         name: peer.name,
         cipher,
         verification_code: conn.verification_code().to_string(),
+        discovery_key: peer.discovery_key.as_bytes().to_vec(),
     })
 }
 

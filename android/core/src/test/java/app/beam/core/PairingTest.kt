@@ -4,6 +4,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,6 +26,9 @@ class PairingTest {
                 assertEquals("Phone A", scanned.name)
                 assertEquals("Phone B", shown.await().name)
                 assertEquals(shown.await().verificationCode, scanned.verificationCode)
+                assertEquals(32, scanned.discoveryKey.size)
+                assertEquals(32, shown.await().discoveryKey.size)
+                assertFalse(scanned.discoveryKey.contentEquals(shown.await().discoveryKey))
             }
         }
     }
