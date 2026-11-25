@@ -5,6 +5,7 @@
 //! returns a typed [`BeamError`], which Kotlin sees as `BeamException` with one subclass per
 //! category.
 
+mod discovery;
 mod engine;
 mod error;
 mod identity;
@@ -15,6 +16,7 @@ mod progress;
 mod runtime;
 mod types;
 
+pub use discovery::recognise_beacon;
 pub use engine::Engine;
 pub use error::BeamError;
 pub use identity::DeviceIdentity;

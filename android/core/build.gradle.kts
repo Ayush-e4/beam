@@ -187,6 +187,8 @@ dependencies {
     implementation(libs.jna) { artifact { type = "aar" } }
     // UniFFI turns the engine's async calls into suspend functions.
     api(libs.kotlinx.coroutines.core)
+    // @RequiresApi for the Android 14+ discovery path.
+    implementation(libs.androidx.annotation)
     testImplementation(libs.jna)
     testImplementation(libs.junit)
     // Run on a connected phone: ./gradlew :core:connectedDebugAndroidTest
