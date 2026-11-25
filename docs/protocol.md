@@ -27,11 +27,14 @@ code and the phone scans it. Between two phones, either can show it.
 Laptop / browser shows QR ──► phone scans          (phone ↔ computer)
 Phone A shows QR          ──► phone B scans        (phone ↔ phone)
 
-QR payload: { version, pairing_token, displayer_device_pubkey, signaling_room,
+QR payload: { version, pairing_token, displayer_device_pubkey, cipher, signaling_room,
               connection hints (LAN addresses, ports; only if the displayer accepts connections) }
 ```
 
-1. The displayer generates a one-time `pairing_token` (short-lived, single use).
+1. The displayer generates a one-time `pairing_token` (short-lived, single use) and picks the
+   session `cipher`: AES-256-GCM when its CPU accelerates AES, otherwise ChaCha20-Poly1305. The
+   scanner uses the same cipher. Trusted devices remember the cipher chosen at pairing.
+   (Provisional: revisit after measuring on real devices in M2.)
 2. The two devices connect. Who connects is independent of who displayed the code:
    - **Displayer accepts connections** (a phone or the desktop app): the scanner connects
      using the hints, or the signaling room if they fail.
