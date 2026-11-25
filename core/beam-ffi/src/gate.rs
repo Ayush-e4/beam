@@ -5,6 +5,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::net::IpAddr;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 /// Unknown offers allowed from one address per [`OFFER_WINDOW`].
@@ -48,6 +49,11 @@ fn drop_older(times: &mut VecDeque<Instant>, now: Instant, window: Duration) {
     {
         times.pop_front();
     }
+}
+
+/// Locks `gate`, carrying on after a panic elsewhere: its counters stay usable.
+pub(crate) fn lock(gate: &Mutex<SenderGate>) -> MutexGuard<'_, SenderGate> {
+    gate.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// What the listener knows about each address that sent unknown offers.

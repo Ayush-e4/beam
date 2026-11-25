@@ -2,45 +2,35 @@
 
 use std::net::IpAddr;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, PoisonError};
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use beam_core::tcp::TcpAcceptor;
-use beam_core::{
-    Connection, Handshake, Manifest, Receiver, confirm_received, read_offer, receive_transfer,
-    reject_offer,
-};
+use beam_core::{Connection, Manifest, Receiver, receive_transfer, reject_offer};
 use tokio::net::TcpStream;
 use tokio::runtime::Handle;
-use tokio::time::timeout;
+use tokio::sync::mpsc;
+use tokio::task::AbortHandle;
 
 use crate::engine::Finished;
-use crate::gate::SenderGate;
+use crate::gate::{SenderGate, lock};
+use crate::inbox::{Inbox, QUEUED_OFFERS, Queued};
 use crate::progress::{ProgressListener, reporting};
 use crate::runtime::{blocking, run};
 use crate::{
     BeamError, DeclineReason, DeviceIdentity, SessionCipher, TransferSummary, TrustedKeys,
 };
 
-/// How long a connected device has to send its offer.
-const OFFER_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// Pause after a failed incoming connection.
-const RETRY_PAUSE: Duration = Duration::from_millis(50);
-
 type Link = Connection<TcpStream>;
 
-/// Accepts connections from other devices. Close it to stop listening.
+/// Accepts connections from other devices in the background, many at once, and hands out
+/// their offers. Close it to stop listening; offers not yet handed out are dropped.
 #[derive(uniffi::Object)]
 pub struct Listener {
     handle: Handle,
-    acceptor: Arc<TcpAcceptor>,
     port: u16,
-    identity: Arc<DeviceIdentity>,
-    cipher: SessionCipher,
-    finished: Arc<Finished>,
-    trusted: Arc<dyn TrustedKeys>,
-    gate: Arc<Mutex<SenderGate>>,
+    offers: Arc<tokio::sync::Mutex<mpsc::Receiver<Queued>>>,
+    accepting: AbortHandle,
 }
 
 impl std::fmt::Debug for Listener {
@@ -61,16 +51,29 @@ impl Listener {
         trusted: Arc<dyn TrustedKeys>,
     ) -> Result<Arc<Self>, BeamError> {
         let port = acceptor.local_addr()?.port();
-        Ok(Arc::new(Self {
-            handle,
-            acceptor: Arc::new(acceptor),
-            port,
+        let (queue, offers) = mpsc::channel(QUEUED_OFFERS);
+        let inbox = Arc::new(Inbox {
+            handle: handle.clone(),
+            acceptor,
             identity,
-            cipher,
+            cipher: cipher.into(),
             finished,
             trusted,
             gate: Arc::default(),
+        });
+        let accepting = handle.spawn(inbox.run(queue)).abort_handle();
+        Ok(Arc::new(Self {
+            handle,
+            port,
+            offers: Arc::new(tokio::sync::Mutex::new(offers)),
+            accepting,
         }))
+    }
+}
+
+impl Drop for Listener {
+    fn drop(&mut self) {
+        self.accepting.abort();
     }
 }
 
@@ -82,61 +85,25 @@ impl Listener {
         self.port
     }
 
-    /// Waits for the next offer. Connections that fail the handshake or never send a valid
-    /// offer are dropped and it keeps waiting; a repeated offer for a transfer already saved is
-    /// confirmed automatically, so the sender finishes without sending it twice. Unknown
-    /// devices over their limit are turned away as busy without reaching the app, and blocked
-    /// addresses are cut off before the handshake. Cancel the call (or close the listener) to
-    /// stop waiting.
+    /// Waits for the next offer. Devices are handled side by side, so one that connects and
+    /// stays silent can't hold up the others (at most 4 connections in progress per address,
+    /// 32 in total). Connections that fail the handshake or never send a valid offer are
+    /// dropped; a repeated offer for a transfer already saved is confirmed automatically, so
+    /// the sender finishes without sending it twice. Unknown devices over their limit are
+    /// turned away as busy without reaching the app, and blocked addresses are cut off before
+    /// the handshake. Cancelling the call only stops waiting; the listener keeps accepting.
     ///
     /// # Errors
     ///
     /// [`BeamError::Crypto`] only if this device's own key is unusable.
     pub async fn next_offer(&self) -> Result<Arc<IncomingOffer>, BeamError> {
-        let acceptor = self.acceptor.clone();
-        let identity = self.identity.clone();
-        let cipher = self.cipher.into();
-        let finished = self.finished.clone();
-        let trusted = self.trusted.clone();
-        let gate = self.gate.clone();
-        let handle = self.handle.clone();
+        let offers = self.offers.clone();
         run(&self.handle, async move {
-            loop {
-                let handshake = Handshake::known_responder(identity.keypair(), cipher)?;
-                let allowed =
-                    |from: std::net::SocketAddr| !lock(&gate).is_blocked(from.ip(), Instant::now());
-                let Ok((mut conn, from)) = acceptor.accept_from(handshake, allowed).await else {
-                    // A device failed the handshake or gave up. One bad device must not end
-                    // listening; the pause keeps a broken socket from spinning.
-                    tokio::time::sleep(RETRY_PAUSE).await;
-                    continue;
-                };
-                let Ok(Ok(manifest)) = timeout(OFFER_TIMEOUT, read_offer(&mut conn)).await else {
-                    continue; // no valid offer in time
-                };
-                if finished.contains(manifest.transfer_id()) {
-                    // Best effort: if it fails, the sender asks again on its next attempt.
-                    let _ = confirm_received(&mut conn, &manifest).await;
-                    continue;
-                }
-                let is_trusted = trusted.is_trusted(conn.peer().as_bytes().to_vec());
-                if !is_trusted && !lock(&gate).admit_unknown_offer(from.ip(), Instant::now()) {
-                    // Best effort: a sender over its limit learns it should wait.
-                    let _ = reject_offer(
-                        &mut conn,
-                        manifest.transfer_id(),
-                        DeclineReason::Busy.into(),
-                    )
-                    .await;
-                    continue;
-                }
-                let sender = Sender {
-                    ip: from.ip(),
-                    trusted: is_trusted,
-                    gate: gate.clone(),
-                };
-                return Ok(IncomingOffer::new(handle, conn, manifest, finished, sender));
-            }
+            offers.lock().await.recv().await.unwrap_or_else(|| {
+                Err(BeamError::Cancelled {
+                    detail: "the listener stopped".into(),
+                })
+            })
         })
         .await
     }
@@ -154,14 +121,10 @@ pub struct IncomingOffer {
 }
 
 /// Where an offer came from, for the abuse limits.
-struct Sender {
-    ip: IpAddr,
-    trusted: bool,
-    gate: Arc<Mutex<SenderGate>>,
-}
-
-fn lock(gate: &Mutex<SenderGate>) -> std::sync::MutexGuard<'_, SenderGate> {
-    gate.lock().unwrap_or_else(PoisonError::into_inner)
+pub(crate) struct Sender {
+    pub(crate) ip: IpAddr,
+    pub(crate) trusted: bool,
+    pub(crate) gate: Arc<Mutex<SenderGate>>,
 }
 
 impl std::fmt::Debug for IncomingOffer {
@@ -173,7 +136,7 @@ impl std::fmt::Debug for IncomingOffer {
 }
 
 impl IncomingOffer {
-    fn new(
+    pub(crate) fn new(
         handle: Handle,
         conn: Link,
         manifest: Manifest,
