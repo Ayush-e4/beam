@@ -280,3 +280,6 @@ fn a_resume_carries_the_selection_even_without_an_earlier_accept() {
     r.finish().unwrap();
     assert!(!t.dest.join("album/noise.bin").exists(), "not selected");
 }
+
+#[path = "sender_progress_tests.rs"]
+mod progress;
