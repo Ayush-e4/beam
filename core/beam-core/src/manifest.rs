@@ -7,6 +7,8 @@
 
 use std::collections::HashSet;
 
+use snow::resolvers::{CryptoResolver, DefaultResolver};
+
 use crate::integrity::{ChunkLayout, Hash};
 use crate::safe_path::SafePath;
 use crate::{BeamError, Result};
@@ -28,6 +30,24 @@ pub const PACK_ITEM_ID: u32 = u32::MAX;
 /// Unique identifier of a transfer, chosen by the sender.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TransferId(pub [u8; 16]);
+
+impl TransferId {
+    /// Picks a new random transfer ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BeamError::Handshake`] if the system random number generator fails.
+    pub fn random() -> Result<Self> {
+        let mut rng = DefaultResolver
+            .resolve_rng()
+            .ok_or_else(|| BeamError::Handshake("no random number generator".into()))?;
+        let mut id = [0u8; 16];
+        rng.try_fill_bytes(&mut id).map_err(|err| {
+            BeamError::Handshake(format!("random number generator failed: {err}"))
+        })?;
+        Ok(Self(id))
+    }
+}
 
 /// One file in a transfer.
 #[derive(Debug, Clone, PartialEq, Eq)]

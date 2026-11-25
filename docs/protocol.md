@@ -105,6 +105,12 @@ version error. Capabilities in `HELLO` negotiate features (compression, packing,
   manifests span several `OFFER` frames of 1 MiB; a flag marks the last piece, and the
   receiver caps the total at 64 MiB before validating it as a whole. Item ID `u32::MAX` is
   reserved for the small-file pack stream.
+- The sender builds the manifest from the picked files and folders (`sender_files.rs`): each
+  pick lands at the top of the destination under its own name, folders keep their layout,
+  names are sanitized like the receiver does and colliding names get ` (2)`, ` (3)`, …
+  Symbolic links inside folders, special files and empty folders are skipped. The transfer ID
+  is random, MIME types are guessed from the extension, and a file whose size or modified time
+  changes after the offer fails the transfer instead of sending mixed data.
 
 ### Transfer messages
 
