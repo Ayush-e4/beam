@@ -11,7 +11,8 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use crate::manifest::TransferId;
+use crate::journal;
+use crate::manifest::{Manifest, TransferId};
 use crate::receiver_store::STAGING_DIR;
 use crate::{BeamError, Result};
 
@@ -29,15 +30,16 @@ pub struct Cleanup {
     pub failed: u32,
 }
 
-/// Whether `destination` holds an unfinished `transfer_id` received from `sender` (a public
-/// key), so a new offer of it continues what the person already accepted.
+/// Whether `destination` holds an unfinished transfer of exactly `manifest` (the same ID and
+/// the same files) received from `sender` (a public key), so a new offer of it continues what
+/// the person already accepted. An offer that reuses the ID for other files never does.
 #[must_use]
-pub fn continues(destination: &Path, transfer_id: TransferId, sender: &[u8]) -> bool {
+pub fn continues(destination: &Path, manifest: &Manifest, sender: &[u8]) -> bool {
     !sender.is_empty()
         && (0..SLOTS).any(|n| {
-            let dir = slot(destination, transfer_id, n);
+            let dir = slot(destination, manifest.transfer_id(), n);
             fs::read(dir.join(SENDER_FILE)).is_ok_and(|owner| owner == sender)
-                && dir.join(JOURNAL_FILE).is_file()
+                && journal::belongs_to(&dir.join(JOURNAL_FILE), manifest)
         })
 }
 
