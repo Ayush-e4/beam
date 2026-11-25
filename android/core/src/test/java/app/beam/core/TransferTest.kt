@@ -30,6 +30,9 @@ class TransferTest {
 
     private val laptop = DeviceIdentity.generate()
     private val phone = DeviceIdentity.generate()
+    private val trustsLaptop = object : TrustedKeys {
+        override fun isTrusted(publicKey: ByteArray) = publicKey.contentEquals(laptop.publicKey())
+    }
 
     private fun album(bigFile: Int): File {
         val album = File(folder.root, "album").apply { mkdirs() }
@@ -47,7 +50,7 @@ class TransferTest {
         val source = album(5 * MIB)
         Engine(laptop).use { laptopEngine ->
             Engine(phone).use { phoneEngine ->
-                val listener = phoneEngine.listen(0u, CIPHER)
+                val listener = phoneEngine.listen(0u, CIPHER, trustsLaptop)
                 val outgoing = laptopEngine.prepareSend(listOf(source.path))
                 val total = outgoing.summary().totalBytes.toLong()
                 val received = Recorder()
@@ -55,6 +58,7 @@ class TransferTest {
                     async {
                         val offer = listener.nextOffer()
                         assertEquals(laptop.deviceId(), offer.peerDeviceId())
+                        assertTrue(offer.fromTrustedDevice())
                         offer.accept(inbox().path, emptyList(), received)
                     }
                 val result = outgoing.sendTo(
@@ -77,7 +81,7 @@ class TransferTest {
         val source = album(64 * MIB)
         Engine(laptop).use { laptopEngine ->
             Engine(phone).use { phoneEngine ->
-                val listener = phoneEngine.listen(0u, CIPHER)
+                val listener = phoneEngine.listen(0u, CIPHER, trustsLaptop)
                 val outgoing = laptopEngine.prepareSend(listOf(source.path))
                 val port = listener.port()
 

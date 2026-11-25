@@ -48,7 +48,9 @@
   is gone, the file is damaged), the app creates a new identity, keeps the old file for
   diagnosis and tells the user to pair trusted devices again.
 - Web app: non-extractable WebCrypto keys stored in IndexedDB.
-- Trusted-device records store public keys only.
+- Trusted-device records store the device's public key, name, cipher and discovery key. The
+  discovery key is the only secret: it lets this phone recognise that device's beacons, and
+  can't be used to connect or impersonate it. Records live in no-backup app storage.
 
 ## Web app specifics
 
@@ -74,7 +76,13 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
 
 ## Abuse
 
-- Unknown senders always need approval; repeated rejections trigger temporary blocking.
+- Every offer says whether it comes from a trusted device; offers from unknown devices always
+  need the person's approval.
+- Unknown offers are limited to 5 per address per minute; over the limit they are declined as
+  busy without reaching the app.
+- An address whose unknown offers are declined 3 times within 10 minutes is refused for 10
+  minutes, before any handshake work. Limits are per IP address (keys are free to make) and
+  never apply to trusted devices.
 - Broadcast features (later versions) require explicit opt-in on each receiver.
 
 ## Process

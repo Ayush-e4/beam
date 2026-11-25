@@ -79,6 +79,18 @@ class TrustedDevicesTest {
     }
 
     @Test
+    fun `the engine asks by public key and an unreadable list trusts nobody`() {
+        val store = TrustedDevices(file)
+        store.add(device(1))
+        assertTrue(store.isTrusted(ByteArray(32) { 1 }))
+        assertFalse(store.isTrusted(ByteArray(32) { 2 }))
+        file.writeBytes(byteArrayOf(7))
+        val reported = mutableListOf<IOException>()
+        assertFalse(TrustedDevices(file) { reported += it }.isTrusted(ByteArray(32) { 1 }))
+        assertEquals("the failure is reported, not hidden", 1, reported.size)
+    }
+
+    @Test
     fun `no file means no trusted devices`() {
         assertEquals(emptyList<TrustedDevice>(), TrustedDevices(file).all())
     }

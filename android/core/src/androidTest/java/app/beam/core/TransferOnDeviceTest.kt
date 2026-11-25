@@ -41,7 +41,7 @@ class TransferOnDeviceTest {
 
         Engine(DeviceIdentity.generate()).use { laptop ->
             Engine(phone).use { phoneEngine ->
-                val listener = phoneEngine.listen(0u, SessionCipher.AES_GCM)
+                val listener = phoneEngine.listen(0u, SessionCipher.AES_GCM, NobodyTrusted)
                 val outgoing = laptop.prepareSend(listOf(source.path))
                 val receive =
                     async { listener.nextOffer().accept(inbox.path, emptyList(), progress) }
@@ -67,6 +67,11 @@ class TransferOnDeviceTest {
                 assertArrayEquals(bytes, File(inbox, "clip.bin").readBytes())
             }
         }
+    }
+
+    /** The laptop isn't paired: its offer still arrives, for the person to decide. */
+    private object NobodyTrusted : TrustedKeys {
+        override fun isTrusted(publicKey: ByteArray) = false
     }
 
     private companion object {

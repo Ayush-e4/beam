@@ -14,7 +14,7 @@ use crate::incoming::Listener;
 use crate::outgoing::OutgoingTransfer;
 use crate::pairing::{Local, PairedDevice, PairingHost, pair_with};
 use crate::runtime::{blocking, run};
-use crate::{BeamError, DeviceIdentity, SessionCipher};
+use crate::{BeamError, DeviceIdentity, SessionCipher, TrustedKeys};
 
 /// How many finished incoming transfers to remember, to answer a sender that missed `done`.
 const REMEMBERED_TRANSFERS: usize = 256;
@@ -115,8 +115,10 @@ impl Engine {
         .await
     }
 
-    /// Listens for transfers from known devices on `port` (0 picks a free one), on every
-    /// network interface. Devices connecting must use `cipher`.
+    /// Listens for transfers on `port` (0 picks a free one), on every network interface.
+    /// Devices connecting must use `cipher`. Each offer says whether `trusted` knows the
+    /// sender; offers from unknown devices are rate-limited per address, and an address whose
+    /// offers keep being declined is refused for a while.
     ///
     /// # Errors
     ///
@@ -125,6 +127,7 @@ impl Engine {
         &self,
         port: u16,
         cipher: SessionCipher,
+        trusted: Arc<dyn TrustedKeys>,
     ) -> Result<Arc<Listener>, BeamError> {
         let handle = self.handle()?;
         let identity = self.identity.clone();
@@ -133,7 +136,7 @@ impl Engine {
         run(&handle, async move {
             let addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, port));
             let acceptor = TcpAcceptor::bind(addr).await?;
-            Listener::new(task, acceptor, identity, cipher, finished)
+            Listener::new(task, acceptor, identity, cipher, finished, trusted)
         })
         .await
     }

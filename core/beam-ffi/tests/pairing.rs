@@ -9,6 +9,7 @@ use std::sync::Arc;
 use beam_core::{Beacon, DiscoveryKey, PairingInvite};
 use beam_ffi::{
     BeamError, DeviceIdentity, Engine, PairingHost, ProgressListener, SendResult, SessionCipher,
+    TrustedKeys,
 };
 
 struct Phone {
@@ -160,6 +161,15 @@ async fn other_codes_are_refused_with_a_reason() {
 
 struct Quiet;
 
+/// Trusts exactly one key, as the app's trusted-device list would.
+struct Trusts(Vec<u8>);
+
+impl TrustedKeys for Trusts {
+    fn is_trusted(&self, public_key: Vec<u8>) -> bool {
+        public_key == self.0
+    }
+}
+
 impl ProgressListener for Quiet {
     fn on_progress(&self, _: u64, _: u64) {}
 }
@@ -168,11 +178,11 @@ impl ProgressListener for Quiet {
 async fn a_paired_device_can_send_right_away() {
     let (a, b) = (phone(), phone());
     let (host, code) = host(&a).await;
-    let (_, scanned) = tokio::join!(
+    let (shown, scanned) = tokio::join!(
         host.wait_for_device("Phone A".into()),
         b.engine.pair_with(code, "Phone B".into())
     );
-    let phone_a = scanned.unwrap();
+    let (phone_b, phone_a) = (shown.unwrap(), scanned.unwrap());
 
     // B sends to A using only what pairing gave it: A's key and the cipher.
     let dir = tempfile::TempDir::new().unwrap();
@@ -180,7 +190,8 @@ async fn a_paired_device_can_send_right_away() {
     std::fs::write(&note, b"hi from B").unwrap();
     let inbox = dir.path().join("inbox");
     std::fs::create_dir(&inbox).unwrap();
-    let listener = a.engine.listen(0, phone_a.cipher).await.unwrap();
+    let trusted = Arc::new(Trusts(phone_b.public_key));
+    let listener = a.engine.listen(0, phone_a.cipher, trusted).await.unwrap();
     let outgoing = b
         .engine
         .prepare_send(vec![note.to_string_lossy().into_owned()])
@@ -189,6 +200,7 @@ async fn a_paired_device_can_send_right_away() {
     let receive = async {
         let offer = listener.next_offer().await.unwrap();
         assert_eq!(offer.peer_device_id(), b.identity.device_id());
+        assert!(offer.from_trusted_device());
         let inbox = inbox.to_string_lossy().into_owned();
         offer
             .accept(inbox, Vec::new(), Arc::new(Quiet))
