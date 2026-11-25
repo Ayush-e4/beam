@@ -10,6 +10,7 @@ mod engine;
 mod error;
 mod gate;
 mod identity;
+mod inbox;
 mod incoming;
 mod outgoing;
 mod pairing;

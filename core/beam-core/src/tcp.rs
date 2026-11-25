@@ -79,30 +79,29 @@ impl TcpAcceptor {
         &self,
         handshake: Handshake,
     ) -> Result<(Connection<TcpStream>, SocketAddr)> {
-        self.accept_from(handshake, |_| true).await
+        let (stream, from) = self.accept_socket().await?;
+        Ok((respond(stream, handshake).await?, from))
     }
 
-    /// Like [`TcpAcceptor::accept`], but closes connections from addresses `allowed` refuses
-    /// before any handshake work, so a blocked device costs next to nothing.
+    /// Accepts the next connection without any handshake work, so the caller can check the
+    /// address first and run [`respond`] for many devices at once.
     ///
     /// # Errors
     ///
-    /// As [`TcpAcceptor::accept`], plus a network error for a refused address.
-    pub async fn accept_from(
-        &self,
-        handshake: Handshake,
-        allowed: impl FnOnce(SocketAddr) -> bool,
-    ) -> Result<(Connection<TcpStream>, SocketAddr)> {
-        let (stream, from) = self.listener.accept().await.map_err(BeamError::network)?;
-        if !allowed(from) {
-            return Err(BeamError::network(io::Error::new(
-                io::ErrorKind::ConnectionRefused,
-                format!("connections from {} are refused for now", from.ip()),
-            )));
-        }
-        stream.set_nodelay(true).map_err(BeamError::network)?;
-        let established =
-            within_handshake_timeout(Connection::establish(stream, handshake)).await?;
-        Ok((established, from))
+    /// Returns a network error if accepting fails.
+    pub async fn accept_socket(&self) -> Result<(TcpStream, SocketAddr)> {
+        self.listener.accept().await.map_err(BeamError::network)
     }
+}
+
+/// Runs `handshake` as the responder on an accepted `stream`, giving the peer
+/// [`HANDSHAKE_TIMEOUT`] to complete it.
+///
+/// # Errors
+///
+/// Returns a network error if the handshake times out or the link fails, and a crypto error
+/// if the peer fails authentication.
+pub async fn respond(stream: TcpStream, handshake: Handshake) -> Result<Connection<TcpStream>> {
+    stream.set_nodelay(true).map_err(BeamError::network)?;
+    within_handshake_timeout(Connection::establish(stream, handshake)).await
 }

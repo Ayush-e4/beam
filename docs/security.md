@@ -83,6 +83,9 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
 - An address whose unknown offers are declined 3 times within 10 minutes is refused for 10
   minutes, before any handshake work. Limits are per IP address (keys are free to make) and
   never apply to trusted devices.
+- Incoming connections are handled side by side: at most 4 per address and 32 in total may be
+  in their handshake or offer at once, with 10 s for the handshake and 30 s for the offer, so
+  a device that connects and stays silent can't stop anyone else from sending.
 - Broadcast features (later versions) require explicit opt-in on each receiver.
 
 ## Process
