@@ -2,10 +2,20 @@ name: Android
 
 on:
   pull_request:
-    paths: ['android/**', '.editorconfig', '.github/workflows/android.yml']
+    paths:
+      - 'android/**'
+      - 'core/**'
+      - 'rust-toolchain.toml'
+      - '.editorconfig'
+      - '.github/workflows/android.yml'
   push:
     branches: [master]
-    paths: ['android/**', '.editorconfig', '.github/workflows/android.yml']
+    paths:
+      - 'android/**'
+      - 'core/**'
+      - 'rust-toolchain.toml'
+      - '.editorconfig'
+      - '.github/workflows/android.yml'
 
 permissions:
   contents: read
@@ -27,6 +37,20 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
+      # The app embeds the Rust engine (android/core builds core/beam-ffi with cargo-ndk).
+      - name: Install Rust toolchain and Android targets from rust-toolchain.toml
+        working-directory: .
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+          key: android
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --version 4.1.2 --locked
+      - name: Install the Android NDK
+        run: |
+          ndk=$(sed -n 's/^ndk = "\(.*\)"/\1/p' gradle/libs.versions.toml)
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
       - name: Unit tests, lint and ktlint
         run: ./gradlew testDebugUnitTest lintDebug ktlintCheck --stacktrace
       - name: Build debug APK

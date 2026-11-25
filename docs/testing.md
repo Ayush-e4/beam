@@ -28,6 +28,9 @@ to `master` unless all checks pass.
 ### Android app
 
 - **Unit tests** for ViewModels, repositories and use cases.
+- **Engine bridge tests** (`android/core`): JVM tests call the Rust engine through the
+  generated UniFFI bindings (built for the host and loaded with JNA), covering results and
+  typed `BeamException`s.
 - **Compose UI tests** for each screen and key flows (pairing, send, receive, history).
 - **Instrumented tests** on emulators for services, permissions and storage.
 - **Real-device test matrix** (manual and scripted over adb): Samsung, Pixel, Xiaomi, OnePlus,

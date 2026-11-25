@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "beam"
-include(":app")
+include(":app", ":core")
