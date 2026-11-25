@@ -196,6 +196,20 @@ compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
 - The receiver keeps a small journal of verified ranges per transfer.
 - On reconnect, the sender sends `OFFER` with the same `transfer_id`; the receiver answers
   with `RESUME` listing verified ranges, and only missing chunks are sent.
+- `RESUME` does not repeat the selection; the sender keeps the one from the first `ACCEPT`.
+- Small files not yet verified go again in a fresh pack stream (piece index back at 0). Empty
+  files have nothing to journal, so they are in the pack on every connection.
+- A large file's root hash covers every chunk hash. If the receiver still needs the last chunk,
+  the sender re-reads and hashes the chunks it skips; if the receiver already has the last
+  chunk, it also has the root, and only the missing chunks are read.
+
+### Sending and flow control
+
+- Order on each connection: the pack stream first, then large files in manifest order.
+- The sender caps unacknowledged data at 64 MiB (`ACK` ranges free it; at least one chunk is
+  always allowed), so a slow receiver applies back-pressure instead of filling memory.
+- A file whose size or modified time changed since the offer stops the transfer with a clear
+  error rather than sending data that would fail its hashes.
 
 ## Clipboard
 

@@ -46,11 +46,17 @@ impl SourceFile {
     pub fn ensure_unchanged(&self) -> Result<()> {
         let meta = fs::metadata(&self.path).map_err(|err| storage_error(&self.path, &err))?;
         if meta.len() != self.size || meta.modified().ok() != self.modified {
-            return Err(BeamError::SourceChanged {
-                path: self.path.display().to_string(),
-            });
+            return Err(self.changed());
         }
         Ok(())
+    }
+
+    /// The error for this file having changed since the offer.
+    #[must_use]
+    pub fn changed(&self) -> BeamError {
+        BeamError::SourceChanged {
+            path: self.path.display().to_string(),
+        }
     }
 }
 
@@ -215,7 +221,7 @@ fn selection_error(reason: &str) -> BeamError {
 }
 
 /// Wraps an I/O error as a storage error that names the file it happened on.
-fn storage_error(path: &Path, err: &io::Error) -> BeamError {
+pub(crate) fn storage_error(path: &Path, err: &io::Error) -> BeamError {
     BeamError::storage(io::Error::new(
         err.kind(),
         format!("{}: {err}", path.display()),
