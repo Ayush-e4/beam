@@ -36,7 +36,8 @@ jobs:
       run:
         working-directory: core/fuzz
     env:
-      SECONDS_PER_TARGET: ${{ github.event_name == 'schedule' && 1200 || 45 }}
+      # Pull requests get a quick pass; nightly and manual runs go long.
+      SECONDS_PER_TARGET: ${{ github.event_name == 'pull_request' && 45 || 1200 }}
     steps:
       - uses: actions/checkout@v7
       - name: Install nightly

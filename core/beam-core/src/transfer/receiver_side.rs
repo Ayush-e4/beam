@@ -1,9 +1,14 @@
 //! The receiving side of [`crate::transfer`].
 //!
 //! [`receive_transfer`] answers with `ACCEPT`, or `RESUME` when the [`Receiver`] recovered
-//! earlier progress, then verifies and writes chunks. It checkpoints and acknowledges every
-//! [`ACK_EVERY_BYTES`], every [`ACK_INTERVAL`] while data is unacknowledged, and as soon as all
-//! expected data has arrived, so the sender's window never stalls.
+//! earlier progress, then verifies and writes chunks. It checkpoints and acknowledges by volume,
+//! every [`ACK_INTERVAL`] while data is unacknowledged, and as soon as all expected data has
+//! arrived, so the sender's window never stalls.
+//!
+//! The volume step starts at [`FIRST_ACK_BYTES`] on every connection and doubles up to
+//! [`ACK_EVERY_BYTES`]. Only checkpointed data survives a drop, so a link that keeps dying after
+//! a few megabytes still makes progress, while a stable link quickly reaches the larger step and
+//! syncs to disk less often.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -17,8 +22,10 @@ use crate::messages::{Accept, ChunkRange, Reason, Resume, encode_ack, encode_rea
 use crate::offer::OfferAssembler;
 use crate::{BeamError, Connection, Receiver, Result};
 
-/// Acknowledge at least this often by volume (8 MiB, well under the sender's window).
+/// Largest volume step between acknowledgements (8 MiB, well under the sender's window).
 pub const ACK_EVERY_BYTES: u64 = 8 * 1024 * 1024;
+/// Volume step for the first acknowledgement on each connection (1 MiB).
+pub const FIRST_ACK_BYTES: u64 = 1024 * 1024;
 /// Acknowledge at least this often by time while data is unacknowledged.
 pub const ACK_INTERVAL: Duration = Duration::from_millis(250);
 /// How long to wait for the sender to close after the final "done" `ACK`.
@@ -163,13 +170,17 @@ async fn receive_chunks<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<Vec<PathBuf>> {
     let transfer_id = receiver.manifest().transfer_id();
     let mut unacked: u64 = 0;
+    let mut ack_every = FIRST_ACK_BYTES;
     let mut last_ack = Instant::now();
     loop {
-        let due = unacked >= ACK_EVERY_BYTES
+        let due = unacked >= ack_every
             || (unacked > 0 && last_ack.elapsed() >= ACK_INTERVAL)
             || receiver.has_all_data();
         if due {
             receiver = checkpoint(conn, receiver).await?;
+            if unacked >= ack_every {
+                ack_every = (ack_every * 2).min(ACK_EVERY_BYTES);
+            }
             (unacked, last_ack) = (0, Instant::now());
             if receiver.is_complete() {
                 return blocking(move || receiver.finish()).await;
