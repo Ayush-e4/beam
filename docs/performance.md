@@ -34,7 +34,17 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
 ## 3. CPU
 
 - **Hardware crypto:** AES-GCM via ARMv8 crypto extensions (ChaCha20-Poly1305 fallback on
-  devices without them).
+  devices without them). Noise uses `ring` for its ciphers (`snow` feature `ring-accelerated`);
+  the default pure-Rust backend does not use the AES/PMULL instructions. Session throughput,
+  seal and open in one process, 1 MiB frames (2026-11-25):
+
+  | Device                      | Backend   | AES-256-GCM | ChaCha20-Poly1305 |
+  | --------------------------- | --------- | ----------- | ----------------- |
+  | Galaxy S21 FE (Exynos 2100) | pure Rust | ~95 MB/s    | ~240 MB/s         |
+  | Galaxy S21 FE (Exynos 2100) | `ring`    | ~380 MB/s   | ~285 MB/s         |
+  | Mac (Apple Silicon)         | pure Rust | ~140 MB/s   | ~420 MB/s         |
+  | Mac (Apple Silicon)         | `ring`    | ~2,800 MB/s | ~1,380 MB/s       |
+
 - **BLAKE3** hashing with NEON SIMD.
 - **Pipelined, multi-core stages:** read → hash → (compress) → encrypt → send run concurrently
   with bounded queues for backpressure.
