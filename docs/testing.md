@@ -31,7 +31,8 @@ to `master` unless all checks pass.
 - **Engine bridge tests** (`android/core`): JVM tests call the Rust engine through the
   generated UniFFI bindings (built for the host and loaded with JNA), covering results and
   typed `BeamException`s, plus the identity store (first launch, reload, lost wrapping key,
-  damaged file, no plaintext key on disk), and loopback transfers between two engines,
+  damaged file, no plaintext key on disk), the trusted-device list (restart, re-pairing,
+  lookup by key, removal, damaged files fail loudly), and loopback transfers between two engines,
   including cancelling a receive coroutine and resuming.
 - **Engine API tests** (`core/beam-ffi/tests/transfers.rs`): the exported transfer API driven
   as the app drives it: progress on both sides, declining, a device with another key, a
