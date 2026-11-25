@@ -1,0 +1,20 @@
+[package]
+name = "beam-ffi"
+version = "0.1.0"
+description = "UniFFI bindings that expose beam-core to the Android app (and later desktop apps)."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+# `cdylib` is what Android loads; `lib` lets the tests in this crate call it directly.
+crate-type = ["cdylib", "lib"]
+name = "beam_ffi"
+
+[dependencies]
+beam-core = { path = "../beam-core" }
+thiserror = "2.0.21"
+uniffi = "0.32.2"

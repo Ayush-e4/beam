@@ -1,0 +1,13 @@
+[package]
+name = "uniffi-bindgen"
+version = "0.0.0"
+description = "Generates the Kotlin bindings for beam-ffi from the built library."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+uniffi = { version = "0.32.2", features = ["cli"] }

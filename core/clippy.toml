@@ -3,3 +3,6 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
+
+# Proper names that are not code.
+doc-valid-idents = ["UniFFI", ".."]

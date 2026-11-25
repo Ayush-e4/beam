@@ -33,6 +33,13 @@ jobs:
         run: cargo clippy --all-targets --locked -- -D warnings
       - name: Test
         run: cargo test --locked
+      - name: Generate Kotlin bindings
+        # Proves the exported API still turns into Kotlin; the Android build generates its own.
+        run: |
+          cargo build --locked -p beam-ffi
+          cargo run --locked -p uniffi-bindgen -- generate --no-format \
+            --library target/debug/libbeam_ffi.so --language kotlin --out-dir target/kotlin
+          test -s target/kotlin/app/beam/core/beam_ffi.kt
 
   m1-exit:
     # Fault-injection transfers of a 1 GiB file over TCP and lossy QUIC, in release mode. The
