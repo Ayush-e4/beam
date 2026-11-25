@@ -30,6 +30,15 @@ class TrustedDevicesTest {
     }
 
     @Test
+    fun `every cipher survives a restart`() {
+        val devices = SessionCipher.entries.mapIndexed { n, cipher ->
+            device(n).copy(cipher = cipher)
+        }
+        TrustedDevices(file).apply { devices.forEach(::add) }
+        assertEquals(devices.reversed(), TrustedDevices(file).all())
+    }
+
+    @Test
     fun `re-pairing replaces the old record`() {
         val store = TrustedDevices(file)
         store.add(device(1))

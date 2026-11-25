@@ -123,9 +123,10 @@ class TrustedDevices(private val file: File) {
         val deviceId = readUTF()
         val key = ByteArray(readUnsignedShort()).also { readFully(it) }
         val name = readUTF()
+        val cipherName = readUTF()
         val cipher =
-            SessionCipher.entries.firstOrNull { it.name == readUTF() }
-                ?: throw IOException("unknown cipher in trusted-devices file")
+            SessionCipher.entries.firstOrNull { it.name == cipherName }
+                ?: throw IOException("unknown cipher \"$cipherName\" in trusted-devices file")
         return TrustedDevice(deviceId, key, name, cipher, readLong())
     }
 
