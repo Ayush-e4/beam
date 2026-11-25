@@ -52,7 +52,7 @@ class TransferService : Service() {
     /** Android 15+: `dataSync` may run 6 hours a day. Stop cleanly; transfers resume later. */
     override fun onTimeout(startId: Int, fgsType: Int) {
         Log.w(TAG, "Android stopped the transfer service after its daily time limit")
-        registry.cancelAll()
+        registry.cancelAll(byPerson = false)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

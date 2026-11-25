@@ -97,6 +97,33 @@ class TransferRunnerTest {
     }
 
     @Test
+    fun `the work can tell whether the person or Android cancelled it`() = runBlocking {
+        val causes = java.util.concurrent.ConcurrentLinkedQueue<Boolean>()
+        fun cancellable(running: CompletableDeferred<Unit>) =
+            runner.start(Direction.SENDING, "x", 1) {
+                try {
+                    running.complete(Unit)
+                    awaitCancellation()
+                } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                    causes += e.isByPerson()
+                    throw e
+                }
+            }
+        val first = CompletableDeferred<Unit>()
+        val byPerson = cancellable(first)
+        first.await()
+        registry.cancel(byPerson)
+        assertEquals(TransferState.Cancelled, ended(byPerson))
+
+        val second = CompletableDeferred<Unit>()
+        val byAndroid = cancellable(second)
+        second.await()
+        registry.cancelAll(byPerson = false)
+        assertEquals(TransferState.Cancelled, ended(byAndroid))
+        assertEquals(listOf(true, false), causes.toList())
+    }
+
+    @Test
     fun `clearing forgets ended transfers only`() = runBlocking {
         val done = runner.start(Direction.SENDING, "a", 1) { TransferState.Done }
         ended(done)
