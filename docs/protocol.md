@@ -217,8 +217,9 @@ compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
 1. Sender: `OFFER` (one or more frames). Receiver: `ACCEPT`, `RESUME` (it has earlier progress)
    or `REJECT`.
 2. Sender streams `CHUNK`s while reading `ACK`s. The receiver makes data durable and acks it
-   every 8 MiB, every 250 ms while anything is unacknowledged, and as soon as all expected
-   data has arrived.
+   by volume (1 MiB at the start of each connection, doubling to 8 MiB), every 250 ms while
+   anything is unacknowledged, and as soon as all expected data has arrived. Only acked data
+   survives a drop, so the small first steps let a link that keeps dying still make progress.
 3. When every file is verified and published, the receiver sends an **empty `ACK`** ("done").
    The sender closes; the receiver closes once it sees that (or after 5 s).
 4. A side that fails for any reason other than the network sends `CANCEL` (failed) first. A
