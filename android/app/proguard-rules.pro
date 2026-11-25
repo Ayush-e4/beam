@@ -1,1 +1,2 @@
-# Project-specific R8 rules. Keep rules for JNI (beam-core) will be added with the bridge.
+# Project-specific R8 rules. The engine bridge (:core) ships its own keep rules for JNA and
+# the UniFFI bindings in core/consumer-rules.pro.

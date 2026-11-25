@@ -10,12 +10,19 @@ android {
         version = release(37) { minorApiLevel = 2 }
     }
 
+    // Same NDK as :core, so the packaged Rust and JNA libraries get stripped.
+    ndkVersion = libs.versions.ndk.get()
+
     defaultConfig {
         applicationId = "app.beam"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+
+        // Only the ABIs :core builds the engine for; JNA alone ships more, which would install
+        // on devices where the engine is missing.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
     buildTypes {
@@ -48,6 +55,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":core"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
