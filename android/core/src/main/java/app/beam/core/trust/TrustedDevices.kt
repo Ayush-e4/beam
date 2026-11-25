@@ -1,8 +1,10 @@
 package app.beam.core.trust
 
 import android.content.Context
+import android.util.Log
 import app.beam.core.PairedDevice
 import app.beam.core.SessionCipher
+import app.beam.core.TrustedKeys
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -52,9 +54,16 @@ data class TrustedDevice(
 /**
  * The devices this phone trusts, kept in [file]. Reads come from memory; every change is
  * written atomically, so a crash never leaves a half-written list. Unreadable files throw
- * rather than silently forgetting every trusted device.
+ * rather than silently forgetting every trusted device. Pass it to `Engine.listen` so each
+ * offer says whether it comes from a trusted device.
  */
-class TrustedDevices(private val file: File) {
+class TrustedDevices(
+    private val file: File,
+    /** Told when the engine asked and the list couldn't be read. */
+    private val onUnreadable: (IOException) -> Unit = { e ->
+        Log.e(TAG, "trusted devices unreadable; treating the sender as unknown", e)
+    }
+) : TrustedKeys {
     private var devices: List<TrustedDevice>? = null
 
     /** Every trusted device, most recently paired first. */
@@ -67,6 +76,17 @@ class TrustedDevices(private val file: File) {
     @Throws(IOException::class)
     fun find(publicKey: ByteArray): TrustedDevice? =
         loaded().firstOrNull { it.publicKey.contentEquals(publicKey) }
+
+    /**
+     * For the engine: whether [publicKey] belongs to a trusted device. If the list can't be
+     * read, the sender is treated as unknown, so the person is asked rather than trusting it.
+     */
+    override fun isTrusted(publicKey: ByteArray): Boolean = try {
+        find(publicKey) != null
+    } catch (e: IOException) {
+        onUnreadable(e)
+        false
+    }
 
     /** Adds [device], replacing an earlier record of the same device (re-pairing). */
     @Synchronized
@@ -149,6 +169,7 @@ class TrustedDevices(private val file: File) {
     companion object {
         // 2 added the discovery key. Nothing shipped with 1, so it isn't migrated.
         private const val FORMAT_VERSION: Byte = 2
+        private const val TAG = "BeamTrust"
 
         /** The app's trusted devices. Not backed up: the identity they trust isn't either. */
         fun forApp(context: Context) =

@@ -14,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -57,23 +58,30 @@ class PairingOnDeviceTest {
                     TrustedDevices(trust).find(laptop.publicKey())
                 ) { "trusted device survives a reload" }
 
-                sendFile(phoneEngine, laptopEngine, trusted, addresses.first())
+                val laptopTrust = TrustedDevices(File(root, "laptop-trusted-devices.bin"))
+                laptopTrust.add(TrustedDevice.from(shown.await(), System.currentTimeMillis()))
+                sendFile(phoneEngine, laptopEngine, laptopTrust, trusted, addresses.first())
             }
         }
     }
 
-    /** Sends a file from the phone engine to the trusted laptop, using what pairing agreed. */
+    /** Sends a file from the phone to the laptop, each using what pairing gave it. */
     private suspend fun sendFile(
         phoneEngine: Engine,
         laptopEngine: Engine,
+        laptopTrust: TrustedDevices,
         laptop: TrustedDevice,
         address: String
     ) = coroutineScope {
         val source = File(root, "outbox/note.txt").apply { parentFile?.mkdirs() }
         source.writeText("sent to a paired device")
         val inbox = File(root, "inbox").apply { mkdirs() }
-        val listener = laptopEngine.listen(0u, laptop.cipher)
-        val receive = async { listener.nextOffer().accept(inbox.path, emptyList(), NoProgress) }
+        val listener = laptopEngine.listen(0u, laptop.cipher, laptopTrust)
+        val receive = async {
+            val offer = listener.nextOffer()
+            assertTrue("the phone is in the laptop's trusted list", offer.fromTrustedDevice())
+            offer.accept(inbox.path, emptyList(), NoProgress)
+        }
         val result = phoneEngine.prepareSend(listOf(source.path))
             .sendTo(address, listener.port(), laptop.publicKey, laptop.cipher, NoProgress)
         receive.await()

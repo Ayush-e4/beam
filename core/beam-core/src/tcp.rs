@@ -79,7 +79,27 @@ impl TcpAcceptor {
         &self,
         handshake: Handshake,
     ) -> Result<(Connection<TcpStream>, SocketAddr)> {
+        self.accept_from(handshake, |_| true).await
+    }
+
+    /// Like [`TcpAcceptor::accept`], but closes connections from addresses `allowed` refuses
+    /// before any handshake work, so a blocked device costs next to nothing.
+    ///
+    /// # Errors
+    ///
+    /// As [`TcpAcceptor::accept`], plus a network error for a refused address.
+    pub async fn accept_from(
+        &self,
+        handshake: Handshake,
+        allowed: impl FnOnce(SocketAddr) -> bool,
+    ) -> Result<(Connection<TcpStream>, SocketAddr)> {
         let (stream, from) = self.listener.accept().await.map_err(BeamError::network)?;
+        if !allowed(from) {
+            return Err(BeamError::network(io::Error::new(
+                io::ErrorKind::ConnectionRefused,
+                format!("connections from {} are refused for now", from.ip()),
+            )));
+        }
         stream.set_nodelay(true).map_err(BeamError::network)?;
         let established =
             within_handshake_timeout(Connection::establish(stream, handshake)).await?;

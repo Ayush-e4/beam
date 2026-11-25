@@ -9,13 +9,22 @@ use std::sync::{Arc, Mutex};
 
 use beam_ffi::{
     BeamError, DeclineReason, DeviceIdentity, Engine, IncomingOffer, Listener, ProgressListener,
-    SendResult, SessionCipher,
+    SendResult, SessionCipher, TrustedKeys,
 };
 use tempfile::TempDir;
 use tokio::sync::Notify;
 
 const MIB: usize = 1024 * 1024;
 const CIPHER: SessionCipher = SessionCipher::ChaChaPoly;
+
+/// Trusts exactly one key.
+struct Trusts(Vec<u8>);
+
+impl TrustedKeys for Trusts {
+    fn is_trusted(&self, public_key: Vec<u8>) -> bool {
+        public_key == self.0
+    }
+}
 
 /// Records every report; wakes `passed` once `threshold` bytes are done.
 #[derive(Default)]
@@ -84,13 +93,14 @@ async fn setup(big_file: usize) -> Setup {
     for n in 0..50 {
         fs::write(source.join(format!("small/{n}.txt")), format!("note {n}")).unwrap();
     }
-    let phone = device();
-    let listener = phone.engine.listen(0, CIPHER).await.unwrap();
+    let (phone, laptop) = (device(), device());
+    let trusted = Arc::new(Trusts(laptop.identity.public_key()));
+    let listener = phone.engine.listen(0, CIPHER, trusted).await.unwrap();
     Setup {
         _dir: dir,
         source,
         inbox,
-        laptop: device(),
+        laptop,
         phone,
         listener,
     }
