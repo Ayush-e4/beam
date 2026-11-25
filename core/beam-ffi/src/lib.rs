@@ -14,6 +14,7 @@ mod inbox;
 mod incoming;
 mod outgoing;
 mod pairing;
+mod prepare;
 mod progress;
 mod runtime;
 mod shared;

@@ -9,14 +9,12 @@ use std::time::{Duration, SystemTime};
 
 use beam_core::staging::remove_stale;
 use beam_core::tcp::TcpAcceptor;
-use beam_core::{Beacon, DiscoveryKey, Sender, TransferId, prepare_opened, prepare_transfer};
+use beam_core::{Beacon, DiscoveryKey, TransferId};
 use tokio::runtime::{Builder, Runtime};
 
 use crate::incoming::Listener;
-use crate::outgoing::OutgoingTransfer;
 use crate::pairing::{Local, PairedDevice, PairingHost, pair_with};
 use crate::runtime::{blocking, run};
-use crate::shared::{SharedFile, duplicate};
 use crate::{BeamError, DeviceIdentity, SessionCipher, TrustedKeys, UnfinishedCleanup};
 
 /// How many finished incoming transfers to remember, to answer a sender that missed `done`.
@@ -50,7 +48,7 @@ impl Finished {
 #[derive(Debug, uniffi::Object)]
 pub struct Engine {
     runtime: Option<Runtime>,
-    identity: Arc<DeviceIdentity>,
+    pub(crate) identity: Arc<DeviceIdentity>,
     finished: Arc<Finished>,
     discovery_generation: AtomicU32,
 }
@@ -95,50 +93,6 @@ impl Engine {
     /// [`BeamError::Crypto`] if the random number generator fails.
     pub fn new_beacon(&self) -> Result<String, BeamError> {
         Ok(Beacon::new(&self.discovery_key())?.encode())
-    }
-
-    /// Reads the picked files and folders and prepares a transfer. Keep the result and call
-    /// [`OutgoingTransfer::send_to`] again after a failure: it resumes where it stopped.
-    ///
-    /// # Errors
-    ///
-    /// [`BeamError::Storage`] if a path can't be read or the selection can't be sent.
-    pub async fn prepare_send(
-        &self,
-        paths: Vec<String>,
-    ) -> Result<Arc<OutgoingTransfer>, BeamError> {
-        let handle = self.handle()?;
-        let identity = self.identity.clone();
-        let task = handle.clone();
-        run(&handle, async move {
-            let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-            let prepared = blocking(move || prepare_transfer(&paths)).await?;
-            Ok(OutgoingTransfer::new(task, identity, Sender::new(prepared)))
-        })
-        .await
-    }
-
-    /// Prepares a transfer of files the app has open, such as gallery or share-sheet items.
-    /// Each lands at the top of the receiver's folder under its name. The engine takes its
-    /// own copy of every descriptor before returning, so the app closes its own afterwards.
-    ///
-    /// # Errors
-    ///
-    /// [`BeamError::Storage`] if a descriptor isn't an open regular file or the selection
-    /// can't be sent.
-    pub async fn prepare_send_shared(
-        &self,
-        files: Vec<SharedFile>,
-    ) -> Result<Arc<OutgoingTransfer>, BeamError> {
-        let opened = duplicate(&files)?;
-        let handle = self.handle()?;
-        let identity = self.identity.clone();
-        let task = handle.clone();
-        run(&handle, async move {
-            let prepared = blocking(move || prepare_opened(opened)).await?;
-            Ok(OutgoingTransfer::new(task, identity, Sender::new(prepared)))
-        })
-        .await
     }
 
     /// Removes unfinished incoming transfers in `destination` that made no progress for
@@ -232,7 +186,7 @@ impl Engine {
         DiscoveryKey::derive(self.identity.keypair(), generation)
     }
 
-    fn handle(&self) -> Result<tokio::runtime::Handle, BeamError> {
+    pub(crate) fn handle(&self) -> Result<tokio::runtime::Handle, BeamError> {
         self.runtime
             .as_ref()
             .map(|runtime| runtime.handle().clone())

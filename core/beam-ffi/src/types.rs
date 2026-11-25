@@ -133,6 +133,23 @@ impl From<&Manifest> for TransferSummary {
     }
 }
 
+/// The transfer ID in `hex` (32 hex characters, as [`TransferSummary::transfer_id`] has it).
+pub(crate) fn parse_transfer_id(hex: &str) -> Result<TransferId, BeamError> {
+    let invalid = || BeamError::Internal {
+        detail: format!("{hex:?} is not a transfer ID"),
+    };
+    if hex.len() != 32 || !hex.is_ascii() {
+        return Err(invalid());
+    }
+    let mut id = [0u8; 16];
+    let (pairs, _) = hex.as_bytes().as_chunks::<2>();
+    for (byte, pair) in id.iter_mut().zip(pairs) {
+        let text = std::str::from_utf8(pair).map_err(|_| invalid())?;
+        *byte = u8::from_str_radix(text, 16).map_err(|_| invalid())?;
+    }
+    Ok(TransferId(id))
+}
+
 fn hex(id: &TransferId) -> String {
     use std::fmt::Write as _;
     id.0.iter().fold(String::new(), |mut out, byte| {

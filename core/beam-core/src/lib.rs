@@ -59,8 +59,8 @@ pub use progress::Progress;
 pub use receiver::Receiver;
 pub use safe_path::SafePath;
 pub use sender::Sender;
-pub use sender_files::{PreparedTransfer, SourceFile, prepare_transfer};
-pub use sender_opened::{OpenedFile, prepare_opened};
+pub use sender_files::{PreparedTransfer, SourceFile, prepare_transfer, prepare_transfer_with_id};
+pub use sender_opened::{OpenedFile, prepare_opened, prepare_opened_with_id};
 pub use session::Session;
 pub use transfer::{
     SendOutcome, confirm_received, read_offer, receive_transfer, reject_offer, send_transfer,

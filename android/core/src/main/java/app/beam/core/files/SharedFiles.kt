@@ -23,29 +23,35 @@ import kotlinx.coroutines.withContext
  * Each file is sent under its display name, straight from the provider, without copying.
  * Sources that can only be streamed are first copied into the app's cache.
  *
+ * Pass [resumeId], the transfer ID of a send cut off when the app was closed, to send it again
+ * so the receiver continues it.
+ *
  * @throws IOException if one can't be opened, or Beam may no longer read it.
  * @throws app.beam.core.BeamException if the selection can't be sent.
  */
-suspend fun Engine.prepareSendUris(context: Context, uris: List<Uri>): OutgoingTransfer =
-    withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
-        val spillDir = File(context.cacheDir, SPILL_DIR)
-        val open = ArrayList<ParcelFileDescriptor>(uris.size)
-        try {
-            val files = uris.map { uri ->
-                val name = displayName(resolver, uri)
-                val source = openForReading(resolver, uri, name).also(open::add)
-                val readable = readableAtAnyPosition(source, spillDir).also {
-                    if (it !== source) open += it
-                }
-                SharedFile(name, readable.fd)
+suspend fun Engine.prepareSendUris(
+    context: Context,
+    uris: List<Uri>,
+    resumeId: String? = null
+): OutgoingTransfer = withContext(Dispatchers.IO) {
+    val resolver = context.contentResolver
+    val spillDir = File(context.cacheDir, SPILL_DIR)
+    val open = ArrayList<ParcelFileDescriptor>(uris.size)
+    try {
+        val files = uris.map { uri ->
+            val name = displayName(resolver, uri)
+            val source = openForReading(resolver, uri, name).also(open::add)
+            val readable = readableAtAnyPosition(source, spillDir).also {
+                if (it !== source) open += it
             }
-            // The engine takes its own descriptors before this returns.
-            prepareSendShared(files)
-        } finally {
-            open.forEach(::closeOrLog)
+            SharedFile(name, readable.fd)
         }
+        // The engine takes its own descriptors before this returns.
+        if (resumeId == null) prepareSendShared(files) else resumeSendShared(files, resumeId)
+    } finally {
+        open.forEach(::closeOrLog)
     }
+}
 
 /** The name the provider shows for [uri], or its last path segment. */
 internal fun displayName(resolver: ContentResolver, uri: Uri): String {
