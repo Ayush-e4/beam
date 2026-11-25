@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Plain wording for the transfer notification; the design work will refine it. -->
+<resources>
+    <string name="beam_channel_transfers">Transfers</string>
+    <string name="beam_channel_transfers_description">Progress of files being sent or received</string>
+
+    <string name="beam_sending">Sending %1$s</string>
+    <string name="beam_receiving">Receiving %1$s</string>
+    <plurals name="beam_running">
+        <item quantity="one">%d transfer</item>
+        <item quantity="other">%d transfers</item>
+    </plurals>
+    <string name="beam_progress">%1$s of %2$s</string>
+    <string name="beam_cancel">Cancel</string>
+
+    <string name="beam_sent">Sent %1$s</string>
+    <string name="beam_received">Received %1$s</string>
+    <string name="beam_declined">%1$s was declined</string>
+    <string name="beam_failed">Couldn\'t transfer %1$s: %2$s</string>
+    <string name="beam_cancelled">Stopped %1$s. It resumes next time.</string>
+    <plurals name="beam_finished">
+        <item quantity="one">%d transfer finished</item>
+        <item quantity="other">%d transfers finished</item>
+    </plurals>
+    <plurals name="beam_finished_with_problems">
+        <item quantity="one">%1$d transfer finished, %2$d didn\'t complete</item>
+        <item quantity="other">%1$d transfers finished, %2$d didn\'t complete</item>
+    </plurals>
+</resources>
