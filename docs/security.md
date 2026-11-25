@@ -92,5 +92,9 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
 
 - Dependency auditing in CI (`cargo audit`, `npm audit`, Gradle dependency checks).
 - Fuzzing for the frame parser, manifest parser and pack format.
+- No `unsafe` Rust (`unsafe_code = "deny"`), with one documented exception: `beam-ffi`
+  duplicates a file descriptor the Android app holds open (`dup`), because shared gallery and
+  picker items can't be reopened by path. The engine never closes or takes over the app's own
+  descriptor.
 - Security review before each major release; an external audit is planned before v2.
 - Private disclosure channel for vulnerability reports.
