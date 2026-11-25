@@ -141,6 +141,20 @@ ranges, and bound every count by the payload size.
 - A transfer completes when every chunk of every item is verified and every root hash matches;
   then the file is moved into its final location atomically.
 
+### Receiving
+
+- Files are received into `<destination>/.beam-partial/<transfer id>/` next to the resume
+  journal, so publishing a finished file is a same-disk rename: a file appears under its real
+  name only once it is complete and verified. No manifest path may use that folder.
+- Every chunk is checked against the manifest (accepted item, right size, root only on the
+  last chunk) and its hash before it is written. Small files must arrive in the pack stream.
+- The receiver acknowledges in batches: it flushes written data, records it in the journal,
+  then sends `ACK`. An acknowledged chunk is always on disk.
+- Root hashes are saved as soon as they arrive. At the end, the receiver re-checks every
+  large file's root hash, re-reading only chunks from earlier connections.
+- Existing files are never overwritten: a clash gets a numbered name such as `photo (1).jpg`.
+  Modified times are restored where the file system allows.
+
 ### Small files
 
 Many small files are **packed** into a continuous stream (a tar-like container with per-entry
