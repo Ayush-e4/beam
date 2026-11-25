@@ -87,6 +87,26 @@ pub async fn receive_transfer<S: AsyncRead + AsyncWrite + Unpin>(
     conn: &mut Connection<S>,
     receiver: Receiver,
 ) -> Result<Vec<PathBuf>> {
+    receive_transfer_noting(conn, receiver, |_| {}).await
+}
+
+/// Like [`receive_transfer`], calling `saved` with the published paths as soon as the files
+/// are in place, before telling the sender. Record the transfer as received there: if the
+/// connection or the app stops while saying `done`, the sender asks again, and that record is
+/// what lets the answer be [`confirm_received`] rather than a new offer.
+///
+/// # Errors
+///
+/// As for [`receive_transfer`].
+pub async fn receive_transfer_noting<S, F>(
+    conn: &mut Connection<S>,
+    receiver: Receiver,
+    saved: F,
+) -> Result<Vec<PathBuf>>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    F: FnOnce(&[PathBuf]),
+{
     let transfer_id = receiver.manifest().transfer_id();
     let result = async {
         conn.send(&reply_for(&receiver)?).await?;
@@ -94,6 +114,7 @@ pub async fn receive_transfer<S: AsyncRead + AsyncWrite + Unpin>(
     }
     .await;
     let paths = fail_with_cancel(conn, transfer_id, result).await?;
+    saved(&paths);
     // The files are published; from here on a failure no longer changes the outcome.
     say_done(conn).await;
     Ok(paths)

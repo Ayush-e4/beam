@@ -13,7 +13,8 @@ use beam_core::quic::QuicEndpoint;
 use beam_core::tcp::{self, TcpAcceptor};
 use beam_core::{
     BeamError, Cipher, Connection, Handshake, Receiver, SendOutcome, Sender, StaticKeypair,
-    confirm_received, prepare_transfer, read_offer, receive_transfer, reject_offer, send_transfer,
+    confirm_received, prepare_transfer, read_offer, receive_transfer, receive_transfer_noting,
+    reject_offer, send_transfer,
 };
 use tempfile::TempDir;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -74,14 +75,22 @@ fn sender_for(f: &Folders) -> Arc<Mutex<Sender>> {
     Arc::new(Mutex::new(Sender::new(prepared)))
 }
 
-/// The receiving app: read the offer, accept everything, receive.
+/// The receiving app: read the offer, accept everything, receive. The files are already in
+/// place when it is told they were saved, before the sender hears `done`.
 async fn accept_all<S: AsyncRead + AsyncWrite + Unpin>(
     conn: &mut Connection<S>,
     dest: &Path,
 ) -> beam_core::Result<Vec<PathBuf>> {
     let manifest = read_offer(conn).await?;
     let receiver = Receiver::open(manifest, dest, &[])?;
-    receive_transfer(conn, receiver).await
+    let mut noted = Vec::new();
+    let paths = receive_transfer_noting(conn, receiver, |saved| {
+        assert!(saved.iter().all(|path| path.is_file()), "published first");
+        noted = saved.to_vec();
+    })
+    .await?;
+    assert_eq!(noted, paths);
+    Ok(paths)
 }
 
 fn keys() -> (StaticKeypair, StaticKeypair) {

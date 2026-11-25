@@ -63,7 +63,8 @@ pub use sender_files::{PreparedTransfer, SourceFile, prepare_transfer, prepare_t
 pub use sender_opened::{OpenedFile, prepare_opened, prepare_opened_with_id};
 pub use session::Session;
 pub use transfer::{
-    SendOutcome, confirm_received, read_offer, receive_transfer, reject_offer, send_transfer,
+    SendOutcome, confirm_received, read_offer, receive_transfer, receive_transfer_noting,
+    reject_offer, send_transfer,
 };
 pub use verification::VerificationCode;
 pub use version::ProtocolVersion;

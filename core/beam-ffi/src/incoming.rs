@@ -7,13 +7,13 @@ use std::time::Instant;
 
 use beam_core::staging::continues;
 use beam_core::tcp::TcpAcceptor;
-use beam_core::{Connection, Manifest, Receiver, receive_transfer, reject_offer};
+use beam_core::{Connection, Manifest, Receiver, receive_transfer_noting, reject_offer};
 use tokio::net::TcpStream;
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 use tokio::task::AbortHandle;
 
-use crate::engine::Finished;
+use crate::finished::Finished;
 use crate::gate::{SenderGate, lock};
 use crate::inbox::{Inbox, QUEUED_OFFERS, Queued};
 use crate::progress::{ProgressListener, reporting};
@@ -225,8 +225,12 @@ impl IncomingOffer {
             })
             .await?;
             let watched = receiver.progress();
-            let saved = reporting(watched, progress, receive_transfer(&mut conn, receiver)).await?;
-            finished.insert(transfer_id);
+            let receiving = receive_transfer_noting(&mut conn, receiver, |_| {
+                // Remembered in memory either way; if saving the list fails, the worst case
+                // after a restart is asking the person again about files that arrived.
+                let _ = finished.insert(transfer_id);
+            });
+            let saved = reporting(watched, progress, receiving).await?;
             Ok(saved
                 .into_iter()
                 .map(|path| path.to_string_lossy().into_owned())
