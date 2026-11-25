@@ -121,7 +121,7 @@ One transfer runs per connection at a time. All integers are little-endian; a ra
 | -------- | ------------------------------------------------------------------------------------- |
 | `ACCEPT` | `transfer_id` · count · item IDs (count 0 = every item)                               |
 | `REJECT` | `transfer_id` · reason (declined, no space, busy, failed)                             |
-| `RESUME` | `transfer_id` · count · ranges the receiver already verified                          |
+| `RESUME` | `transfer_id` · count · item IDs (as in `ACCEPT`) · count · ranges already verified  |
 | `ACK`    | count · ranges newly verified                                                         |
 | `CANCEL` | `transfer_id` · reason                                                                |
 | `CHUNK`  | item ID · chunk index · encoding · decoded length · chunk hash · optional root · body |
@@ -196,7 +196,8 @@ compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
 - The receiver keeps a small journal of verified ranges per transfer.
 - On reconnect, the sender sends `OFFER` with the same `transfer_id`; the receiver answers
   with `RESUME` listing verified ranges, and only missing chunks are sent.
-- `RESUME` does not repeat the selection; the sender keeps the one from the first `ACCEPT`.
+- `RESUME` repeats the selection, because the sender may never have seen the `ACCEPT` (it was
+  lost in a drop) or may have restarted since.
 - Small files not yet verified go again in a fresh pack stream (piece index back at 0). Empty
   files are never sent: they have no chunks, and the receiver creates them when publishing.
 - A large file's root hash covers every chunk hash. If the receiver still needs the last chunk,

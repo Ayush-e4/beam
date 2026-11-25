@@ -27,7 +27,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::frame::{Frame, FrameType};
 use crate::manifest::TransferId;
-use crate::messages::{Accept, Reason, decode_ack, decode_reason, decode_resume, encode_reason};
+use crate::messages::{Accept, Reason, Resume, decode_ack, decode_reason, encode_reason};
 use crate::offer::encode_offer;
 use crate::{BeamError, Connection, ErrorCategory, Result, Sender};
 
@@ -90,10 +90,7 @@ async fn await_reply<S: AsyncRead + AsyncWrite + Unpin>(
     let frame = recv_frame(conn).await?;
     match frame.frame_type {
         FrameType::Accept => lock(sender).accept(&Accept::decode(&frame.payload)?)?,
-        FrameType::Resume => {
-            let (id, have) = decode_resume(&frame.payload)?;
-            lock(sender).resume(id, &have)?;
-        }
+        FrameType::Resume => lock(sender).resume(&Resume::decode(&frame.payload)?)?,
         FrameType::Reject => return reason_for(transfer_id, &frame.payload).map(Some),
         _ => return Err(unexpected(&frame, transfer_id)),
     }

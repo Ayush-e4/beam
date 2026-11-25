@@ -13,7 +13,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use super::{TRANSFER_STREAM, blocking, closed, fail_with_cancel, recv_frame, unexpected};
 use crate::frame::{Frame, FrameType};
 use crate::manifest::{Manifest, TransferId};
-use crate::messages::{Accept, ChunkRange, Reason, encode_ack, encode_reason, encode_resume};
+use crate::messages::{Accept, ChunkRange, Reason, Resume, encode_ack, encode_reason};
 use crate::offer::OfferAssembler;
 use crate::{BeamError, Connection, Receiver, Result};
 
@@ -110,9 +110,17 @@ pub async fn confirm_received<S: AsyncRead + AsyncWrite + Unpin>(
             chunks: 0..item.layout()?.chunk_count(),
         });
     }
-    let payload = encode_resume(manifest.transfer_id(), &have)?;
-    conn.send(&Frame::new(FrameType::Resume, TRANSFER_STREAM, payload)?)
-        .await?;
+    let resume = Resume {
+        transfer_id: manifest.transfer_id(),
+        items: Vec::new(),
+        have,
+    };
+    conn.send(&Frame::new(
+        FrameType::Resume,
+        TRANSFER_STREAM,
+        resume.encode()?,
+    )?)
+    .await?;
     say_done(conn).await;
     Ok(())
 }
@@ -135,8 +143,12 @@ async fn say_done<S: AsyncRead + AsyncWrite + Unpin>(conn: &mut Connection<S>) {
 fn reply_for(receiver: &Receiver) -> Result<Frame> {
     let transfer_id = receiver.manifest().transfer_id();
     if receiver.resumed() {
-        let payload = encode_resume(transfer_id, &receiver.have())?;
-        return Frame::new(FrameType::Resume, TRANSFER_STREAM, payload);
+        let resume = Resume {
+            transfer_id,
+            items: receiver.accepted_items(),
+            have: receiver.have(),
+        };
+        return Frame::new(FrameType::Resume, TRANSFER_STREAM, resume.encode()?);
     }
     let accept = Accept {
         transfer_id,
