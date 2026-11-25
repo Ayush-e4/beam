@@ -15,7 +15,9 @@ validated with tests and fuzzing.
 - Each device has a long-term **device key pair** (X25519 for key agreement, Ed25519 for
   signatures) stored in the platform keystore. On Android the private key never leaves Keystore
   where hardware support allows; otherwise it is wrapped by a Keystore key.
-- A device is identified by its **device ID**: a hash of its public key.
+- A device is identified by its **device ID**: the first 16 bytes of
+  `BLAKE3-derive_key("beam 2026-11-25 device id v1", X25519 public key)`, written as 32
+  lowercase hex characters. It is derived, never chosen, so no other key can claim it.
 - Trusted devices are stored after first pairing; later connections skip the QR step.
 
 ## Pairing (first connection)

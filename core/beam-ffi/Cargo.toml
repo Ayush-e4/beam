@@ -18,3 +18,4 @@ name = "beam_ffi"
 beam-core = { path = "../beam-core" }
 thiserror = "2.0.21"
 uniffi = "0.32.2"
+zeroize = "1.9.2"

@@ -30,7 +30,11 @@ to `master` unless all checks pass.
 - **Unit tests** for ViewModels, repositories and use cases.
 - **Engine bridge tests** (`android/core`): JVM tests call the Rust engine through the
   generated UniFFI bindings (built for the host and loaded with JNA), covering results and
-  typed `BeamException`s.
+  typed `BeamException`s, plus the identity store (first launch, reload, lost wrapping key,
+  damaged file, no plaintext key on disk).
+- **Instrumented tests** for code that needs the real platform, run on a connected phone with
+  `./gradlew :core:connectedDebugAndroidTest`: the Android Keystore key wrapper and the
+  identity store on top of it.
 - **Compose UI tests** for each screen and key flows (pairing, send, receive, history).
 - **Instrumented tests** on emulators for services, permissions and storage.
 - **Real-device test matrix** (manual and scripted over adb): Samsung, Pixel, Xiaomi, OnePlus,
