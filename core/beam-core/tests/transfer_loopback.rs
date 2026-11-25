@@ -13,7 +13,7 @@ use beam_core::quic::QuicEndpoint;
 use beam_core::tcp::{self, TcpAcceptor};
 use beam_core::{
     BeamError, Cipher, Connection, Handshake, Receiver, SendOutcome, Sender, StaticKeypair,
-    prepare_transfer, read_offer, receive_transfer, reject_offer, send_transfer,
+    confirm_received, prepare_transfer, read_offer, receive_transfer, reject_offer, send_transfer,
 };
 use tempfile::TempDir;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -169,4 +169,31 @@ async fn a_file_changed_after_the_offer_cancels_on_both_sides() {
         matches!(received, Err(BeamError::Cancelled)),
         "{received:?}"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_repeated_offer_for_a_finished_transfer_is_confirmed_not_resent() {
+    let f = folders();
+    let sender = sender_for(&f);
+    let (mut a, mut b) = tcp_pair().await;
+    let (sent, received) =
+        tokio::join!(send_transfer(&mut a, &sender), accept_all(&mut b, &f.dest));
+    assert_eq!(sent.unwrap(), SendOutcome::Delivered);
+    received.unwrap();
+
+    // As if `done` had been lost: the sender offers again and the receiver only confirms.
+    let (mut a, mut b) = tcp_pair().await;
+    let confirm = async {
+        let manifest = read_offer(&mut b).await?;
+        confirm_received(&mut b, &manifest).await
+    };
+    let (sent, confirmed) = tokio::join!(send_transfer(&mut a, &sender), confirm);
+    confirmed.unwrap();
+    assert_eq!(sent.unwrap(), SendOutcome::Delivered);
+    assert_eq!(
+        fs::read_dir(&f.dest).unwrap().count(),
+        1,
+        "no duplicate folder"
+    );
+    assert_same_tree(&f.source, &f.dest.join("trip"));
 }

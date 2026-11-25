@@ -73,7 +73,7 @@ fn it_reports_when_all_data_is_in_before_the_checkpoint() {
         }
     }
     assert!(!r.has_all_data(), "the pack is still missing");
-    r.handle_chunk(&pack_piece(&f, 0, &[3, 4, 5])).unwrap();
+    r.handle_chunk(&pack_piece(&f, 0, &[3, 5])).unwrap();
     assert!(r.has_all_data());
     assert!(!r.is_complete(), "not durable until the checkpoint");
     r.checkpoint().unwrap();
@@ -85,4 +85,17 @@ fn a_partial_selection_is_listed_in_the_accept() {
     let (f, dir) = (fixture(), TempDir::new().unwrap());
     let r = Receiver::open(f.manifest.clone(), dir.path(), &[5, 3]).unwrap();
     assert_eq!(r.accepted_items(), [3, 5]);
+}
+
+#[test]
+fn empty_files_are_never_expected_in_the_pack() {
+    let (f, dir) = (fixture(), TempDir::new().unwrap());
+    let mut r = Receiver::open(f.manifest.clone(), dir.path(), &[4]).unwrap();
+    assert!(r.has_all_data(), "an empty file needs no data");
+    assert!(r.handle_chunk(&pack_piece(&f, 0, &[4])).is_err());
+    let paths = Receiver::open(f.manifest.clone(), dir.path(), &[4])
+        .unwrap()
+        .finish()
+        .unwrap();
+    assert_eq!(fs::read(&paths[0]).unwrap(), b"");
 }

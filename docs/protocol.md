@@ -198,7 +198,7 @@ compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
   with `RESUME` listing verified ranges, and only missing chunks are sent.
 - `RESUME` does not repeat the selection; the sender keeps the one from the first `ACCEPT`.
 - Small files not yet verified go again in a fresh pack stream (piece index back at 0). Empty
-  files have nothing to journal, so they are in the pack on every connection.
+  files are never sent: they have no chunks, and the receiver creates them when publishing.
 - A large file's root hash covers every chunk hash. If the receiver still needs the last chunk,
   the sender re-reads and hashes the chunks it skips; if the receiver already has the last
   chunk, it also has the root, and only the missing chunks are read.
@@ -223,6 +223,9 @@ compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
 4. A side that fails for any reason other than the network sends `CANCEL` (failed) first. A
    dropped connection just ends; both sides reconnect and the receiver answers the repeated
    `OFFER` with `RESUME`.
+5. If the link drops after the receiver published but before the sender saw `done`, the sender
+   offers again. The receiver, which remembers finished transfer IDs, answers `RESUME` listing
+   every chunk, then `done`; nothing is sent twice and no duplicate files appear.
 
 All transfer frames use stream ID 1 (one transfer per connection). File I/O runs off the async
 runtime on both sides (`beam-core/src/transfer.rs`).

@@ -224,13 +224,14 @@ impl Sender {
     }
 
     /// Plans this connection: small files not yet received go in the pack, large files with
-    /// missing chunks follow in manifest order.
+    /// missing chunks follow in manifest order. Empty files are never sent; the receiver
+    /// creates them when it publishes.
     fn begin_session(&mut self, have: HashMap<u32, ChunkSet>) {
         let done = |id: u32| have.get(&id).is_some_and(ChunkSet::is_complete);
         let mut small = Vec::new();
         let mut large = VecDeque::new();
         for item in self.prepared.manifest().items() {
-            if !self.selected.contains(&item.item_id) || (item.size > 0 && done(item.item_id)) {
+            if !self.selected.contains(&item.item_id) || item.size == 0 || done(item.item_id) {
                 continue;
             }
             if is_packable(item) {
