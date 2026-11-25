@@ -19,7 +19,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <application>
+    <!-- Received files go to Download/Beam. Android 11+ lets the app write there without
+         asking; Android 10 and older need this permission (and legacy storage on 10). -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <application android:requestLegacyExternalStorage="true">
         <service
             android:name=".transfers.TransferService"
             android:exported="false"
