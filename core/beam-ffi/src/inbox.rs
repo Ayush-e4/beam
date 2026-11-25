@@ -16,7 +16,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 
-use crate::engine::Finished;
+use crate::finished::Finished;
 use crate::gate::{SenderGate, lock};
 use crate::incoming::{IncomingOffer, Sender};
 use crate::{BeamError, DeclineReason, DeviceIdentity, TrustedKeys};

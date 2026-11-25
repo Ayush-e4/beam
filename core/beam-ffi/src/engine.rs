@@ -1,48 +1,21 @@
 //! The engine object the app creates once: it owns the runtime that every transfer runs on.
 
-use std::collections::VecDeque;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use beam_core::staging::remove_stale;
 use beam_core::tcp::TcpAcceptor;
-use beam_core::{Beacon, DiscoveryKey, TransferId};
+use beam_core::{Beacon, DiscoveryKey};
 use tokio::runtime::{Builder, Runtime};
 
+use crate::finished::Finished;
 use crate::incoming::Listener;
 use crate::pairing::{Local, PairedDevice, PairingHost, pair_with};
 use crate::runtime::{blocking, run};
 use crate::{BeamError, DeviceIdentity, SessionCipher, TrustedKeys, UnfinishedCleanup};
-
-/// How many finished incoming transfers to remember, to answer a sender that missed `done`.
-const REMEMBERED_TRANSFERS: usize = 256;
-
-/// Transfers this device received and saved, newest last. Kept in memory for now; the
-/// transfer history (later in M2) will make it survive restarts.
-#[derive(Debug, Default)]
-pub(crate) struct Finished(Mutex<VecDeque<TransferId>>);
-
-impl Finished {
-    pub(crate) fn contains(&self, id: TransferId) -> bool {
-        self.0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .contains(&id)
-    }
-
-    pub(crate) fn insert(&self, id: TransferId) {
-        let mut ids = self.0.lock().unwrap_or_else(PoisonError::into_inner);
-        if !ids.contains(&id) {
-            if ids.len() == REMEMBERED_TRANSFERS {
-                ids.pop_front();
-            }
-            ids.push_back(id);
-        }
-    }
-}
 
 /// Sends and receives files as this device. Create one per app process.
 #[derive(Debug, uniffi::Object)]
@@ -93,6 +66,27 @@ impl Engine {
     /// [`BeamError::Crypto`] if the random number generator fails.
     pub fn new_beacon(&self) -> Result<String, BeamError> {
         Ok(Beacon::new(&self.discovery_key())?.encode())
+    }
+
+    /// Keeps the list of received transfers in `path`, a file in the app's private storage,
+    /// so a sender that asks again after a restart is told the files arrived. Call it once,
+    /// before listening.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Storage`] if the file can't be read or written, or is damaged.
+    pub async fn remember_finished_in(&self, path: String) -> Result<(), BeamError> {
+        let handle = self.handle()?;
+        let finished = self.finished.clone();
+        run(&handle, async move {
+            blocking(move || {
+                finished
+                    .keep_in(PathBuf::from(path))
+                    .map_err(beam_core::BeamError::storage)
+            })
+            .await
+        })
+        .await
     }
 
     /// Removes unfinished incoming transfers in `destination` that made no progress for

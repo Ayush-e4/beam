@@ -8,6 +8,7 @@
 mod discovery;
 mod engine;
 mod error;
+mod finished;
 mod gate;
 mod identity;
 mod inbox;

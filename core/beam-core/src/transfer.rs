@@ -32,7 +32,9 @@ use crate::offer::encode_offer;
 use crate::{BeamError, Connection, ErrorCategory, Result, Sender};
 
 pub mod receiver_side;
-pub use receiver_side::{confirm_received, read_offer, receive_transfer, reject_offer};
+pub use receiver_side::{
+    confirm_received, read_offer, receive_transfer, receive_transfer_noting, reject_offer,
+};
 
 /// Stream ID used for every transfer frame (one transfer runs per connection).
 pub const TRANSFER_STREAM: u32 = 1;
