@@ -5,7 +5,9 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, SystemTime};
 
+use beam_core::staging::remove_stale;
 use beam_core::tcp::TcpAcceptor;
 use beam_core::{Beacon, DiscoveryKey, Sender, TransferId, prepare_opened, prepare_transfer};
 use tokio::runtime::{Builder, Runtime};
@@ -15,7 +17,7 @@ use crate::outgoing::OutgoingTransfer;
 use crate::pairing::{Local, PairedDevice, PairingHost, pair_with};
 use crate::runtime::{blocking, run};
 use crate::shared::{SharedFile, duplicate};
-use crate::{BeamError, DeviceIdentity, SessionCipher, TrustedKeys};
+use crate::{BeamError, DeviceIdentity, SessionCipher, TrustedKeys, UnfinishedCleanup};
 
 /// How many finished incoming transfers to remember, to answer a sender that missed `done`.
 const REMEMBERED_TRANSFERS: usize = 256;
@@ -135,6 +137,28 @@ impl Engine {
         run(&handle, async move {
             let prepared = blocking(move || prepare_opened(opened)).await?;
             Ok(OutgoingTransfer::new(task, identity, Sender::new(prepared)))
+        })
+        .await
+    }
+
+    /// Removes unfinished incoming transfers in `destination` that made no progress for
+    /// `max_age_secs`, freeing their space. Senders coming back later start over.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Storage`] if `destination` can't be read.
+    pub async fn remove_stale_transfers(
+        &self,
+        destination: String,
+        max_age_secs: u64,
+    ) -> Result<UnfinishedCleanup, BeamError> {
+        let handle = self.handle()?;
+        run(&handle, async move {
+            let max_age = Duration::from_secs(max_age_secs);
+            let path = PathBuf::from(destination);
+            blocking(move || remove_stale(&path, max_age, SystemTime::now()))
+                .await
+                .map(UnfinishedCleanup::from)
         })
         .await
     }

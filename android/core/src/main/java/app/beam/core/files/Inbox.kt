@@ -7,10 +7,14 @@ import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Environment
 import android.os.storage.StorageManager
+import android.util.Log
+import app.beam.core.Engine
 import app.beam.core.IncomingOffer
 import app.beam.core.ProgressListener
+import app.beam.core.UnfinishedCleanup
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -74,6 +78,22 @@ object Inbox {
         }
     }
 
+    /**
+     * Removes unfinished transfers nobody came back for in [KEEP_UNFINISHED_DAYS] days,
+     * freeing their space. Run it when the app starts receiving.
+     */
+    suspend fun removeStale(engine: Engine, context: Context): UnfinishedCleanup? {
+        if (status(context) != InboxStatus.READY) return null
+        val cleanup = engine.removeStaleTransfers(
+            folder(context).path,
+            TimeUnit.DAYS.toSeconds(KEEP_UNFINISHED_DAYS).toULong()
+        )
+        if (cleanup.failed > 0u) {
+            Log.w(TAG, "could not remove ${cleanup.failed} unfinished transfers")
+        }
+        return cleanup
+    }
+
     private fun downloads(context: Context): File =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val storage = context.getSystemService(StorageManager::class.java)
@@ -86,9 +106,21 @@ object Inbox {
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         }
 
+    /** How long an unfinished incoming transfer waits for its sender to come back. */
+    const val KEEP_UNFINISHED_DAYS = 7L
+
     private const val FOLDER = "Beam"
+    private const val TAG = "BeamInbox"
     private const val ANNOUNCE_WAIT_MS = 10_000L
 }
+
+/**
+ * Whether this offer continues a transfer from the same device that was already accepted into
+ * Download/Beam and cut off (for example, when the app was closed). Such an offer is accepted
+ * without asking again.
+ */
+suspend fun IncomingOffer.continuesInInbox(context: Context): Boolean =
+    Inbox.status(context) == InboxStatus.READY && continuesIn(Inbox.folder(context).path)
 
 /**
  * Receives the offer into Download/Beam and makes the files visible to other apps. Returns

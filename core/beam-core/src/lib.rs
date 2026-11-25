@@ -36,6 +36,7 @@ mod sender_pack;
 mod sender_source;
 mod sender_stream;
 pub mod session;
+pub mod staging;
 pub mod tcp;
 pub mod transfer;
 pub mod verification;
