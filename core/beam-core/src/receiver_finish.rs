@@ -1,4 +1,5 @@
-//! Finishing a transfer: root-hash checks and publishing into the destination.
+//! Progress and finishing a transfer: what the receiver has, root-hash checks and publishing
+//! into the destination.
 
 use std::path::PathBuf;
 
@@ -10,6 +11,39 @@ use crate::pack::is_packable;
 use crate::{BeamError, Result};
 
 impl Receiver {
+    /// Verified chunks already on disk, for a `RESUME` reply.
+    #[must_use]
+    pub fn have(&self) -> Vec<ChunkRange> {
+        let mut ranges = Vec::new();
+        for item in self.manifest.items() {
+            if let Some(set) = self.journal.progress(item.item_id) {
+                ranges.extend(set.ranges().into_iter().map(|chunks| ChunkRange {
+                    item_id: item.item_id,
+                    chunks,
+                }));
+            }
+        }
+        ranges
+    }
+
+    /// The items to list in an `ACCEPT`: empty when every item was selected.
+    #[must_use]
+    pub fn accepted_items(&self) -> Vec<u32> {
+        if self.selected.len() == self.manifest.items().len() {
+            return Vec::new();
+        }
+        let mut items: Vec<u32> = self.selected.iter().copied().collect();
+        items.sort_unstable();
+        items
+    }
+
+    /// True once every expected chunk of this session has arrived, even if not yet
+    /// checkpointed. The next [`Receiver::checkpoint`] then normally completes the transfer.
+    #[must_use]
+    pub fn has_all_data(&self) -> bool {
+        self.remaining == 0
+    }
+
     /// Verifies every file's root hash and moves the files into place. Returns their final
     /// paths in manifest order.
     ///

@@ -60,3 +60,29 @@ fn finishing_early_fails_and_a_staging_path_is_refused() {
     let manifest = Manifest::new(TransferId([2; 16]), sneaky, 1).unwrap();
     assert!(Receiver::open(manifest, dir.path(), &[]).is_err());
 }
+
+#[test]
+fn it_reports_when_all_data_is_in_before_the_checkpoint() {
+    let (f, dir) = (fixture(), TempDir::new().unwrap());
+    let mut r = Receiver::open(f.manifest.clone(), dir.path(), &[]).unwrap();
+    assert!(r.accepted_items().is_empty(), "everything selected");
+    assert!(!r.has_all_data());
+    for id in [1, 2] {
+        for payload in chunks_for(&f, id) {
+            r.handle_chunk(&payload).unwrap();
+        }
+    }
+    assert!(!r.has_all_data(), "the pack is still missing");
+    r.handle_chunk(&pack_piece(&f, 0, &[3, 4, 5])).unwrap();
+    assert!(r.has_all_data());
+    assert!(!r.is_complete(), "not durable until the checkpoint");
+    r.checkpoint().unwrap();
+    assert!(r.is_complete());
+}
+
+#[test]
+fn a_partial_selection_is_listed_in_the_accept() {
+    let (f, dir) = (fixture(), TempDir::new().unwrap());
+    let r = Receiver::open(f.manifest.clone(), dir.path(), &[5, 3]).unwrap();
+    assert_eq!(r.accepted_items(), [3, 5]);
+}

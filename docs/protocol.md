@@ -211,6 +211,22 @@ compressed formats (JPEG, MP4, ZIP, etc.) are skipped.
 - A file whose size or modified time changed since the offer stops the transfer with a clear
   error rather than sending data that would fail its hashes.
 
+### Running a transfer
+
+1. Sender: `OFFER` (one or more frames). Receiver: `ACCEPT`, `RESUME` (it has earlier progress)
+   or `REJECT`.
+2. Sender streams `CHUNK`s while reading `ACK`s. The receiver makes data durable and acks it
+   every 8 MiB, every 250 ms while anything is unacknowledged, and as soon as all expected
+   data has arrived.
+3. When every file is verified and published, the receiver sends an **empty `ACK`** ("done").
+   The sender closes; the receiver closes once it sees that (or after 5 s).
+4. A side that fails for any reason other than the network sends `CANCEL` (failed) first. A
+   dropped connection just ends; both sides reconnect and the receiver answers the repeated
+   `OFFER` with `RESUME`.
+
+All transfer frames use stream ID 1 (one transfer per connection). File I/O runs off the async
+runtime on both sides (`beam-core/src/transfer.rs`).
+
 ## Clipboard
 
 - `CLIPBOARD` frames carry text directly, and images or files as a small transfer.

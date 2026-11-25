@@ -43,6 +43,9 @@ pub struct Receiver {
     dirty: HashSet<u32>,
     unpacker: Unpacker,
     pack_next: u64,
+    /// Chunks still expected this session. Only a hint for when to checkpoint: a misbehaving
+    /// sender can make it reach zero early, which costs one extra checkpoint and nothing else.
+    remaining: u64,
 }
 
 impl Receiver {
@@ -95,6 +98,7 @@ impl Receiver {
             dirty: HashSet::new(),
             unpacker,
             pack_next: 0,
+            remaining: 0,
         };
         receiver.begin_session();
         Ok(receiver)
@@ -123,21 +127,20 @@ impl Receiver {
                 self.unpacker.skip(item.item_id);
             }
         }
-    }
-
-    /// Verified chunks already on disk, for a `RESUME` reply.
-    #[must_use]
-    pub fn have(&self) -> Vec<ChunkRange> {
-        let mut ranges = Vec::new();
-        for item in self.manifest.items() {
-            if let Some(set) = self.journal.progress(item.item_id) {
-                ranges.extend(set.ranges().into_iter().map(|chunks| ChunkRange {
-                    item_id: item.item_id,
-                    chunks,
-                }));
-            }
-        }
-        ranges
+        self.remaining = self
+            .manifest
+            .items()
+            .iter()
+            .filter(|item| self.selected.contains(&item.item_id))
+            .map(|item| {
+                let total = item.layout().map_or(0, |layout| layout.chunk_count());
+                let have = self
+                    .journal
+                    .progress(item.item_id)
+                    .map_or(0, ChunkSet::count);
+                total.saturating_sub(have)
+            })
+            .sum();
     }
 
     /// Verifies one `CHUNK` frame payload and writes its data to staging.
@@ -189,6 +192,7 @@ impl Receiver {
             *slot = Some(header.hash);
         }
         self.pending.push((item.item_id, header.index));
+        self.remaining = self.remaining.saturating_sub(1);
         self.dirty.insert(item.item_id);
         Ok(())
     }
@@ -213,6 +217,7 @@ impl Receiver {
             self.store.write_whole(file.item_id, &file.data)?;
             if !file.data.is_empty() {
                 self.pending.push((file.item_id, 0));
+                self.remaining = self.remaining.saturating_sub(1);
             }
             self.dirty.insert(file.item_id);
         }

@@ -90,6 +90,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
     /// Waits for the next frame. Returns `None` when the peer closed the connection cleanly
     /// between frames.
     ///
+    /// Cancel-safe: dropping the future before it completes loses no data, so it can be used
+    /// in `tokio::select!`, under a timeout, or polled once to check for a frame.
+    ///
     /// # Errors
     ///
     /// Returns a network error if the stream fails or closes mid-frame, and a crypto or protocol
