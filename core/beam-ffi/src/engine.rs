@@ -7,13 +7,14 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use beam_core::tcp::TcpAcceptor;
-use beam_core::{Beacon, DiscoveryKey, Sender, TransferId, prepare_transfer};
+use beam_core::{Beacon, DiscoveryKey, Sender, TransferId, prepare_opened, prepare_transfer};
 use tokio::runtime::{Builder, Runtime};
 
 use crate::incoming::Listener;
 use crate::outgoing::OutgoingTransfer;
 use crate::pairing::{Local, PairedDevice, PairingHost, pair_with};
 use crate::runtime::{blocking, run};
+use crate::shared::{SharedFile, duplicate};
 use crate::{BeamError, DeviceIdentity, SessionCipher, TrustedKeys};
 
 /// How many finished incoming transfers to remember, to answer a sender that missed `done`.
@@ -110,6 +111,29 @@ impl Engine {
         run(&handle, async move {
             let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
             let prepared = blocking(move || prepare_transfer(&paths)).await?;
+            Ok(OutgoingTransfer::new(task, identity, Sender::new(prepared)))
+        })
+        .await
+    }
+
+    /// Prepares a transfer of files the app has open, such as gallery or share-sheet items.
+    /// Each lands at the top of the receiver's folder under its name. The engine takes its
+    /// own copy of every descriptor before returning, so the app closes its own afterwards.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Storage`] if a descriptor isn't an open regular file or the selection
+    /// can't be sent.
+    pub async fn prepare_send_shared(
+        &self,
+        files: Vec<SharedFile>,
+    ) -> Result<Arc<OutgoingTransfer>, BeamError> {
+        let opened = duplicate(&files)?;
+        let handle = self.handle()?;
+        let identity = self.identity.clone();
+        let task = handle.clone();
+        run(&handle, async move {
+            let prepared = blocking(move || prepare_opened(opened)).await?;
             Ok(OutgoingTransfer::new(task, identity, Sender::new(prepared)))
         })
         .await

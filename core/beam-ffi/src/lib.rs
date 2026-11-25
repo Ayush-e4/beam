@@ -16,6 +16,7 @@ mod outgoing;
 mod pairing;
 mod progress;
 mod runtime;
+mod shared;
 mod trust;
 mod types;
 
@@ -27,6 +28,7 @@ pub use incoming::{IncomingOffer, Listener};
 pub use outgoing::OutgoingTransfer;
 pub use pairing::{PairedDevice, PairingHost};
 pub use progress::ProgressListener;
+pub use shared::SharedFile;
 pub use trust::TrustedKeys;
 pub use types::{DeclineReason, OfferedItem, SendResult, SessionCipher, TransferSummary};
 
