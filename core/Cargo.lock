@@ -186,6 +186,7 @@ dependencies = [
  "beam-core",
  "thiserror",
  "uniffi",
+ "zeroize",
 ]
 
 [[package]]

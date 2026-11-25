@@ -40,6 +40,50 @@ impl PublicKey {
     }
 }
 
+/// Stable identifier of a device: the first 16 bytes of a BLAKE3 hash of its public key.
+///
+/// Trusted-device records and connection logic use it to name a peer without carrying the
+/// whole key around. It is derived, never chosen, so it cannot be claimed by another key.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DeviceId([u8; DEVICE_ID_LEN]);
+
+/// Length in bytes of a [`DeviceId`].
+pub const DEVICE_ID_LEN: usize = 16;
+
+const DEVICE_ID_CONTEXT: &str = "beam 2026-11-25 device id v1";
+
+impl PublicKey {
+    /// The device ID this key identifies.
+    #[must_use]
+    pub fn device_id(&self) -> DeviceId {
+        let hash = blake3::derive_key(DEVICE_ID_CONTEXT, &self.0);
+        let mut id = [0u8; DEVICE_ID_LEN];
+        id.copy_from_slice(&hash[..DEVICE_ID_LEN]);
+        DeviceId(id)
+    }
+}
+
+impl DeviceId {
+    /// Returns the raw ID bytes.
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; DEVICE_ID_LEN] {
+        &self.0
+    }
+}
+
+/// Lowercase hex, 32 characters.
+impl fmt::Display for DeviceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.iter().try_for_each(|byte| write!(f, "{byte:02x}"))
+    }
+}
+
+impl fmt::Debug for DeviceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DeviceId({self})")
+    }
+}
+
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "PublicKey(")?;
@@ -151,6 +195,28 @@ mod tests {
                 out
             });
         assert!(!shown.contains(&hex));
+    }
+
+    #[test]
+    fn device_ids_are_stable_and_distinct() {
+        let a = StaticKeypair::generate().unwrap();
+        let b = StaticKeypair::generate().unwrap();
+        assert_eq!(a.public().device_id(), a.public().device_id());
+        assert_ne!(a.public().device_id(), b.public().device_id());
+    }
+
+    #[test]
+    fn device_id_is_a_known_hash_of_the_key() {
+        // Pinned so the derivation never changes by accident: peers store these IDs.
+        let id = PublicKey::from_bytes([7u8; KEY_LEN]).device_id();
+        let expected = blake3::derive_key(DEVICE_ID_CONTEXT, &[7u8; KEY_LEN]);
+        assert_eq!(id.as_bytes(), &expected[..DEVICE_ID_LEN]);
+        assert_eq!(id.to_string().len(), DEVICE_ID_LEN * 2);
+        assert!(
+            id.to_string()
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        );
     }
 
     #[test]

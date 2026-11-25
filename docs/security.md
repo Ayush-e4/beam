@@ -39,8 +39,14 @@
 
 ## Key storage
 
-- Android: device private key in Android Keystore (StrongBox where available), or wrapped by a
-  Keystore key when the algorithm isn't supported in hardware.
+- Android: the device's X25519 private key is wrapped (AES-256-GCM) by a key that lives in
+  Android Keystore, in StrongBox where the phone has one, otherwise in the TEE. Noise needs the
+  raw X25519 key in the engine, so it is unwrapped into memory that is wiped on drop. The
+  wrapped key lives in no-backup storage; the Keystore key cannot leave the phone, so a backup
+  would be useless. The Keystore key needs no user authentication, because transfers run in
+  the background while the phone is locked. If the wrapped key can't be read (the Keystore key
+  is gone, the file is damaged), the app creates a new identity, keeps the old file for
+  diagnosis and tells the user to pair trusted devices again.
 - Web app: non-extractable WebCrypto keys stored in IndexedDB.
 - Trusted-device records store public keys only.
 

@@ -42,7 +42,7 @@ pub use frame::{Decoded, Frame, FrameType};
 pub use handshake::{Cipher, Established, Handshake, Role};
 pub use integrity::{ChunkLayout, FileHashes, Hash, RootHasher};
 pub use journal::Journal;
-pub use keys::{PublicKey, StaticKeypair};
+pub use keys::{DeviceId, PublicKey, StaticKeypair};
 pub use manifest::{Manifest, ManifestItem, TransferId};
 pub use receiver::Receiver;
 pub use safe_path::SafePath;

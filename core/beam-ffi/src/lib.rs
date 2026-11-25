@@ -6,8 +6,10 @@
 //! category.
 
 mod error;
+mod identity;
 
 pub use error::BeamError;
+pub use identity::DeviceIdentity;
 
 use beam_core::ProtocolVersion;
 
