@@ -6,7 +6,7 @@
 //! so only the missing chunks are read.
 
 use std::fs::File;
-use std::io::{self, Read, Seek, SeekFrom};
+use std::io;
 
 use crate::chunk_set::ChunkSet;
 use crate::compress::{SAMPLE_LEN, encode_chunk, worth_compressing};
@@ -14,6 +14,7 @@ use crate::integrity::{ChunkLayout, RootHasher, chunk_hash};
 use crate::manifest::ManifestItem;
 use crate::messages::ChunkHeader;
 use crate::sender_files::{SourceFile, storage_error};
+use crate::sender_source::read_exact_at;
 use crate::{BeamError, Result};
 
 /// One chunk ready to send.
@@ -62,7 +63,7 @@ impl FileStream {
             return Ok(None);
         }
         source.ensure_unchanged()?;
-        let file = File::open(&source.path).map_err(|err| storage_error(&source.path, &err))?;
+        let file = source.open()?;
         let has_last = have.is_some_and(|set| set.contains(count.saturating_sub(1)));
         let mut stream = Self {
             item_id: item.item_id,
@@ -139,10 +140,7 @@ impl FileStream {
     /// Reads `len` bytes at `offset` into the buffer. A short read means the file shrank.
     fn read_at(&mut self, offset: u64, len: usize) -> Result<()> {
         self.buffer.resize(len, 0);
-        let read = self
-            .file
-            .seek(SeekFrom::Start(offset))
-            .and_then(|_| self.file.read_exact(&mut self.buffer));
+        let read = read_exact_at(&mut self.file, &mut self.buffer, offset);
         match read {
             Ok(()) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => Err(self.source.changed()),

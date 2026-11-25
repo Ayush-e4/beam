@@ -9,12 +9,16 @@
 //!   Sockets, pipes and devices are skipped too.
 //! - Empty folders are not sent, since a manifest only lists files.
 //!
+//! - Files can also be handed over already open ([`crate::sender_opened`]), as Android does
+//!   for gallery, share-sheet and picker items that have no readable path.
+//!
 //! Everything here does blocking file I/O; async callers should run it on a blocking thread.
 
 use std::collections::HashMap;
-use std::fs::{self, Metadata};
+use std::fs::{self, File, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::manifest::{MAX_ITEMS, Manifest, ManifestItem, TransferId};
@@ -22,43 +26,10 @@ use crate::safe_path::{MAX_DEPTH, SafePath};
 use crate::sender_names::NameAllocator;
 use crate::{BeamError, Result, mime};
 
+pub use crate::sender_source::SourceFile;
+
 /// Chunk size used for every file the sender offers (4 MiB).
 pub const DEFAULT_CHUNK_SIZE: u32 = 4 * 1024 * 1024;
-
-/// A file on disk behind one manifest item, with what it looked like when it was offered.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceFile {
-    /// Where the file is on this device.
-    pub path: PathBuf,
-    /// Its size when the manifest was built.
-    pub size: u64,
-    /// Its modified time when the manifest was built, if the platform reports one.
-    pub modified: Option<SystemTime>,
-}
-
-impl SourceFile {
-    /// Checks that the file still has the size and modified time it had when it was offered.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`BeamError::SourceChanged`] if it changed, or a storage error if it can no
-    /// longer be read.
-    pub fn ensure_unchanged(&self) -> Result<()> {
-        let meta = fs::metadata(&self.path).map_err(|err| storage_error(&self.path, &err))?;
-        if meta.len() != self.size || meta.modified().ok() != self.modified {
-            return Err(self.changed());
-        }
-        Ok(())
-    }
-
-    /// The error for this file having changed since the offer.
-    #[must_use]
-    pub fn changed(&self) -> BeamError {
-        BeamError::SourceChanged {
-            path: self.path.display().to_string(),
-        }
-    }
-}
 
 /// A manifest ready to offer, plus where each of its items lives on disk.
 #[derive(Debug, Clone)]
@@ -108,30 +79,34 @@ pub fn prepare_transfer_with_id(
         let mut relative = vec![names.allocate(&display_name(path))];
         builder.add(path, &meta, &mut relative)?;
     }
-    if builder.items.is_empty() {
-        return Err(selection_error("there are no files to send"));
-    }
-    let manifest = Manifest::new(transfer_id, builder.items, builder.total)?;
-    Ok(PreparedTransfer {
-        manifest,
-        sources: builder.sources,
-    })
+    builder.finish(transfer_id)
 }
 
 #[derive(Default)]
-struct Builder {
+pub(crate) struct Builder {
     items: Vec<ManifestItem>,
     sources: HashMap<u32, SourceFile>,
     total: u64,
 }
 
 impl Builder {
+    pub(crate) fn finish(self, transfer_id: TransferId) -> Result<PreparedTransfer> {
+        if self.items.is_empty() {
+            return Err(selection_error("there are no files to send"));
+        }
+        let manifest = Manifest::new(transfer_id, self.items, self.total)?;
+        Ok(PreparedTransfer {
+            manifest,
+            sources: self.sources,
+        })
+    }
+
     /// Adds a file or folder whose receiver-side path is `relative`.
     fn add(&mut self, path: &Path, meta: &Metadata, relative: &mut Vec<String>) -> Result<()> {
         if meta.is_dir() {
             self.add_folder(path, relative)
         } else if meta.is_file() {
-            self.add_file(path, meta, relative)
+            self.add_file(path, meta, relative, None)
         } else {
             Ok(()) // Symbolic links inside folders, sockets, pipes and devices.
         }
@@ -165,7 +140,14 @@ impl Builder {
         Ok(())
     }
 
-    fn add_file(&mut self, path: &Path, meta: &Metadata, relative: &[String]) -> Result<()> {
+    /// Adds one file whose receiver-side path is `relative`; `opened` if it is already open.
+    pub(crate) fn add_file(
+        &mut self,
+        path: &Path,
+        meta: &Metadata,
+        relative: &[String],
+        opened: Option<Arc<File>>,
+    ) -> Result<()> {
         if self.items.len() >= MAX_ITEMS {
             return Err(selection_error(&format!(
                 "more than {MAX_ITEMS} files are selected"
@@ -197,6 +179,7 @@ impl Builder {
                 path: path.to_path_buf(),
                 size,
                 modified,
+                opened,
             },
         );
         Ok(())
@@ -216,7 +199,7 @@ fn unix_millis(time: SystemTime) -> Option<i64> {
     i64::try_from(since_epoch.as_millis()).ok()
 }
 
-fn selection_error(reason: &str) -> BeamError {
+pub(crate) fn selection_error(reason: &str) -> BeamError {
     BeamError::Selection(reason.to_owned())
 }
 

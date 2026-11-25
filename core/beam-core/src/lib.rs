@@ -31,7 +31,9 @@ pub mod safe_path;
 pub mod sender;
 pub mod sender_files;
 mod sender_names;
+pub mod sender_opened;
 mod sender_pack;
+mod sender_source;
 mod sender_stream;
 pub mod session;
 pub mod tcp;
@@ -57,6 +59,7 @@ pub use receiver::Receiver;
 pub use safe_path::SafePath;
 pub use sender::Sender;
 pub use sender_files::{PreparedTransfer, SourceFile, prepare_transfer};
+pub use sender_opened::{OpenedFile, prepare_opened};
 pub use session::Session;
 pub use transfer::{
     SendOutcome, confirm_received, read_offer, receive_transfer, reject_offer, send_transfer,
