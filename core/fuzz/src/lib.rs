@@ -73,3 +73,24 @@ pub fn split(data: &[u8]) -> impl Iterator<Item = &[u8]> {
         Some(piece)
     })
 }
+
+/// Unpadded upper-case base32, so fuzz input can be wrapped as a well-formed pairing code and
+/// reach the binary parser instead of stopping at the text layer.
+#[must_use]
+pub fn base32(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let mut out = String::new();
+    let (mut buffer, mut bits) = (0u32, 0u32);
+    for &byte in bytes {
+        buffer = (buffer << 8) | u32::from(byte);
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            out.push(char::from(ALPHABET[((buffer >> bits) & 31) as usize]));
+        }
+    }
+    if bits > 0 {
+        out.push(char::from(ALPHABET[((buffer << (5 - bits)) & 31) as usize]));
+    }
+    out
+}

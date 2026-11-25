@@ -11,7 +11,7 @@ to `master` unless all checks pass.
 - **Property-based tests** (`proptest`) for round-trips: pack → unpack, frame → parse.
 - **Fuzzing** (`cargo-fuzz`, in `core/fuzz`): frame decoding, path sanitising, encrypted
   session records, handshake messages, offered manifests, transfer messages (accept, reject,
-  resume, ack, chunk headers), the pack format, zstd chunk decoding and the resume journal.
+  resume, ack, chunk headers), the pack format, zstd chunk decoding, the resume journal and scanned pairing codes.
   Run locally with `cargo +nightly fuzz run <target>`.
 - **Loopback integration tests:** two in-process peers over QUIC and TCP, with injected packet
   loss, latency and disconnects.

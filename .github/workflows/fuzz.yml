@@ -32,6 +32,7 @@ jobs:
           - journal_open
           - offer
           - transfer_messages
+          - pairing_invite
     defaults:
       run:
         working-directory: core/fuzz

@@ -4,6 +4,7 @@
 //! cryptography and the file pipeline. Platform apps (Android today, desktop later) call into it
 //! through thin bindings.
 
+mod base32;
 pub mod chunk_set;
 pub mod compress;
 pub mod connection;
@@ -11,6 +12,7 @@ pub mod error;
 pub mod frame;
 pub mod handshake;
 pub mod integrity;
+pub mod invite;
 pub mod journal;
 pub mod keys;
 pub mod manifest;
@@ -42,6 +44,7 @@ pub use error::{BeamError, ErrorCategory, Result};
 pub use frame::{Decoded, Frame, FrameType};
 pub use handshake::{Cipher, Established, Handshake, Role};
 pub use integrity::{ChunkLayout, FileHashes, Hash, RootHasher};
+pub use invite::PairingInvite;
 pub use journal::Journal;
 pub use keys::{DeviceId, PublicKey, StaticKeypair};
 pub use manifest::{Manifest, ManifestItem, TransferId};
