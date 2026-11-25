@@ -33,6 +33,7 @@ jobs:
           - offer
           - transfer_messages
           - pairing_invite
+          - beacon
     defaults:
       run:
         working-directory: core/fuzz
