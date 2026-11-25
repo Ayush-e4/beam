@@ -93,3 +93,10 @@ fn items_expose_their_chunk_layout() {
     assert_eq!(small.layout().expect("valid").chunk_count(), 4);
     assert_eq!(file.layout().expect("valid").chunk_count(), 1);
 }
+
+#[test]
+fn random_transfer_ids_differ() {
+    let first = TransferId::random().expect("random id");
+    let second = TransferId::random().expect("random id");
+    assert_ne!(first, second);
+}

@@ -83,6 +83,18 @@ pub enum BeamError {
     #[error("session is broken; reconnect to continue")]
     SessionBroken,
 
+    /// The files picked to send cannot be sent as they are (nothing to send, too many files,
+    /// folders nested too deeply).
+    #[error("cannot send this selection: {0}")]
+    Selection(String),
+
+    /// A file changed on disk after it was offered, so the data no longer matches the offer.
+    #[error("file changed while sending: {path}")]
+    SourceChanged {
+        /// The file that changed.
+        path: String,
+    },
+
     /// The operation was cancelled.
     #[error("operation cancelled")]
     Cancelled,
@@ -97,6 +109,7 @@ impl BeamError {
                 ErrorCategory::Protocol
             }
             Self::Io { category, .. } => *category,
+            Self::Selection(_) | Self::SourceChanged { .. } => ErrorCategory::Storage,
             Self::IntegrityMismatch { .. }
             | Self::Handshake(_)
             | Self::UnexpectedPeerKey
@@ -144,6 +157,18 @@ mod tests {
         let err = BeamError::Malformed("bad frame".into());
         assert_eq!(err.category(), ErrorCategory::Protocol);
         assert_eq!(err.to_string(), "malformed message: bad frame");
+    }
+
+    #[test]
+    fn sender_file_errors_are_storage_errors() {
+        assert_eq!(
+            BeamError::Selection("no files".into()).category(),
+            ErrorCategory::Storage
+        );
+        let err = BeamError::SourceChanged {
+            path: "a.txt".into(),
+        };
+        assert_eq!(err.category(), ErrorCategory::Storage);
     }
 
     #[test]
