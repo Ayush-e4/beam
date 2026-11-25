@@ -49,6 +49,8 @@ pub use safe_path::SafePath;
 pub use sender::Sender;
 pub use sender_files::{PreparedTransfer, SourceFile, prepare_transfer};
 pub use session::Session;
-pub use transfer::{SendOutcome, read_offer, receive_transfer, reject_offer, send_transfer};
+pub use transfer::{
+    SendOutcome, confirm_received, read_offer, receive_transfer, reject_offer, send_transfer,
+};
 pub use verification::VerificationCode;
 pub use version::ProtocolVersion;

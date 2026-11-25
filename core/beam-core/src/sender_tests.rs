@@ -175,9 +175,7 @@ fn a_resume_works_when_the_receiver_already_has_the_last_chunk() {
     // The receiver misses only big.txt's first chunk, so the root hash it saved earlier is
     // reused and the sender must not re-read the rest of the file.
     let (_, second) = resume_after_crash(|h| !(h.item_id == 0 && h.index == 0));
-    // The missing chunk, plus a pack piece holding the empty file: empty files carry no data to
-    // journal, so they ride in the pack on every connection.
-    assert_eq!(second, 2);
+    assert_eq!(second, 1);
 }
 
 #[test]

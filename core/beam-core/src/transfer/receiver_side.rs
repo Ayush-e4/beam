@@ -13,7 +13,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use super::{TRANSFER_STREAM, blocking, closed, fail_with_cancel, recv_frame, unexpected};
 use crate::frame::{Frame, FrameType};
 use crate::manifest::{Manifest, TransferId};
-use crate::messages::{Accept, Reason, encode_ack, encode_reason, encode_resume};
+use crate::messages::{Accept, ChunkRange, Reason, encode_ack, encode_reason, encode_resume};
 use crate::offer::OfferAssembler;
 use crate::{BeamError, Connection, Receiver, Result};
 
@@ -87,15 +87,49 @@ pub async fn receive_transfer<S: AsyncRead + AsyncWrite + Unpin>(
     }
     .await;
     let paths = fail_with_cancel(conn, transfer_id, result).await?;
+    // The files are published; from here on a failure no longer changes the outcome.
+    say_done(conn).await;
+    Ok(paths)
+}
 
-    // The files are published; from here on a failure no longer matters to the outcome.
-    let done = Frame::new(FrameType::Ack, TRANSFER_STREAM, encode_ack(&[])?)?;
+/// Answers a repeated offer for a transfer this device already received and published: it
+/// reports every chunk as received, then `done`, so the sender finishes without resending.
+/// Use it when the connection dropped after publishing but before the sender saw `done`.
+///
+/// # Errors
+///
+/// Returns a network error if sending the reply fails.
+pub async fn confirm_received<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
+    manifest: &Manifest,
+) -> Result<()> {
+    let mut have = Vec::new();
+    for item in manifest.items().iter().filter(|item| item.size > 0) {
+        have.push(ChunkRange {
+            item_id: item.item_id,
+            chunks: 0..item.layout()?.chunk_count(),
+        });
+    }
+    let payload = encode_resume(manifest.transfer_id(), &have)?;
+    conn.send(&Frame::new(FrameType::Resume, TRANSFER_STREAM, payload)?)
+        .await?;
+    say_done(conn).await;
+    Ok(())
+}
+
+/// Sends the final empty `ACK`, then waits briefly for the sender to close. Failures are
+/// ignored: the files are already published, and a sender that misses `done` reconnects and
+/// is answered by [`confirm_received`].
+async fn say_done<S: AsyncRead + AsyncWrite + Unpin>(conn: &mut Connection<S>) {
+    let Ok(done) = encode_ack(&[]).and_then(|ack| Frame::new(FrameType::Ack, TRANSFER_STREAM, ack))
+    else {
+        return;
+    };
     if conn.send(&done).await.is_ok() {
         let drain = async { while let Ok(Some(_)) = conn.recv().await {} };
         let _ = tokio::time::timeout(CLOSE_GRACE, drain).await;
     }
     let _ = conn.close().await;
-    Ok(paths)
 }
 
 fn reply_for(receiver: &Receiver) -> Result<Frame> {

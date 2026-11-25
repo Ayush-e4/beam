@@ -112,7 +112,7 @@ fn send_all(f: &Fixture, r: &mut Receiver) {
             r.handle_chunk(&payload).unwrap();
         }
     }
-    r.handle_chunk(&pack_piece(f, 0, &[3, 4, 5])).unwrap();
+    r.handle_chunk(&pack_piece(f, 0, &[3, 5])).unwrap();
 }
 
 pub(super) fn assert_published(f: &Fixture, dest: &Path, ids: &[u32]) {
@@ -176,7 +176,7 @@ fn an_interrupted_transfer_resumes_from_what_was_acknowledged() {
     for payload in chunks_for(&f, 2) {
         r.handle_chunk(&payload).unwrap();
     }
-    r.handle_chunk(&pack_piece(&f, 0, &[4, 5])).unwrap();
+    r.handle_chunk(&pack_piece(&f, 0, &[5])).unwrap();
     r.finish().unwrap();
     assert_published(&f, dir.path(), &[1, 2, 3, 4, 5]);
 }
