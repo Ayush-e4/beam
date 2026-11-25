@@ -30,7 +30,9 @@ pub use pairing::{PairedDevice, PairingHost};
 pub use progress::ProgressListener;
 pub use shared::SharedFile;
 pub use trust::TrustedKeys;
-pub use types::{DeclineReason, OfferedItem, SendResult, SessionCipher, TransferSummary};
+pub use types::{
+    DeclineReason, OfferedItem, SendResult, SessionCipher, TransferSummary, UnfinishedCleanup,
+};
 
 use beam_core::ProtocolVersion;
 

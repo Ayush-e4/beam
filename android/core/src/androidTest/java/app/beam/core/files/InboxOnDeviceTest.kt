@@ -55,6 +55,9 @@ class InboxOnDeviceTest {
         assertArrayEquals(bytes, File(first).readBytes())
         assertArrayEquals(bytes, File(second).readBytes())
         assertTrue("indexed for the gallery and Files", indexed(name))
+        Engine(DeviceIdentity.generate()).use { engine ->
+            assertEquals(0u, Inbox.removeStale(engine, context)?.failed)
+        }
         assertEquals(
             "nothing unfinished left behind",
             emptyList<String>(),
@@ -70,8 +73,11 @@ class InboxOnDeviceTest {
                 val listener = phoneEngine.listen(0u, SessionCipher.AES_GCM, NobodyTrusted)
                 val outgoing = laptop.prepareSend(listOf(source.path))
                 runBlocking {
-                    val receive =
-                        async { listener.nextOffer().acceptIntoInbox(context, Ignore) }
+                    val receive = async {
+                        val offer = listener.nextOffer()
+                        assertEquals(false, offer.continuesInInbox(context))
+                        offer.acceptIntoInbox(context, Ignore)
+                    }
                     val result = outgoing.sendTo(
                         "127.0.0.1",
                         listener.port(),

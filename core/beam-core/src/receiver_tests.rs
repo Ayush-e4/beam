@@ -2,6 +2,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use std::fs;
+use std::path::Path;
 
 use tempfile::TempDir;
 
@@ -10,6 +11,7 @@ use crate::compress::{ChunkEncoding, encode_chunk};
 use crate::integrity::hash_reader;
 use crate::manifest::{MIN_CHUNK_SIZE, TransferId};
 use crate::pack::Packer;
+use crate::receiver_store::STAGING_DIR;
 use crate::safe_path::SafePath;
 
 pub(super) const CHUNK: u32 = MIN_CHUNK_SIZE;

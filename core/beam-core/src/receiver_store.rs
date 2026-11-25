@@ -1,6 +1,6 @@
 //! On-disk staging for an incoming transfer.
 //!
-//! Files are received into `<destination>/.beam-partial/<transfer id>/` as `<item>.part`, next
+//! Files are received into a staging folder ([`crate::staging`]) as `<item>.part`, next
 //! to the resume journal and one `<item>.root` file per item holding its root hash. Staging
 //! lives inside the destination so publishing a finished file is a same-file-system rename,
 //! which is atomic: a file appears under its real name only once it is complete and verified.
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, UNIX_EPOCH};
 
 use crate::integrity::Hash;
-use crate::manifest::{ManifestItem, TransferId};
+use crate::manifest::ManifestItem;
 use crate::{BeamError, Result};
 
 /// Folder inside the destination that holds transfers in progress.
@@ -30,23 +30,17 @@ pub(crate) struct Store {
 }
 
 impl Store {
-    pub(crate) fn open(destination: &Path, transfer_id: TransferId) -> Result<Self> {
-        let hex = transfer_id.0.iter().fold(String::new(), |mut out, b| {
-            use std::fmt::Write as _;
-            let _ = write!(out, "{b:02x}");
-            out
-        });
-        let staging = destination.join(STAGING_DIR).join(hex);
-        fs::create_dir_all(&staging).map_err(BeamError::storage)?;
-        Ok(Self {
+    /// Uses `staging` (from [`crate::staging::claim`]) for the transfer's files.
+    pub(crate) fn open(destination: &Path, staging: PathBuf) -> Self {
+        Self {
             destination: destination.to_path_buf(),
             staging,
             open: HashMap::new(),
-        })
+        }
     }
 
     pub(crate) fn journal_path(&self) -> PathBuf {
-        self.staging.join("journal")
+        self.staging.join(crate::staging::JOURNAL_FILE)
     }
 
     fn part_path(&self, item_id: u32) -> PathBuf {

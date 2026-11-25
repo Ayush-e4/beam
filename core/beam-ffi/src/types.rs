@@ -148,3 +148,21 @@ pub(crate) fn peer_key(bytes: &[u8]) -> Result<PublicKey, BeamError> {
     })?;
     Ok(PublicKey::from_bytes(array))
 }
+
+/// What [`crate::Engine::remove_stale_transfers`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct UnfinishedCleanup {
+    /// Unfinished transfers removed.
+    pub removed: u32,
+    /// Stale ones that couldn't be removed (for example, files an earlier install left).
+    pub failed: u32,
+}
+
+impl From<beam_core::staging::Cleanup> for UnfinishedCleanup {
+    fn from(cleanup: beam_core::staging::Cleanup) -> Self {
+        Self {
+            removed: cleanup.removed,
+            failed: cleanup.failed,
+        }
+    }
+}

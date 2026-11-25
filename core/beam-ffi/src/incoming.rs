@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use beam_core::staging::continues;
 use beam_core::tcp::TcpAcceptor;
 use beam_core::{Connection, Manifest, Receiver, receive_transfer, reject_offer};
 use tokio::net::TcpStream;
@@ -181,6 +182,22 @@ impl IncomingOffer {
         self.peer.device_id().to_string()
     }
 
+    /// Whether this offer continues a transfer from the same device that was already accepted
+    /// into `destination` and is unfinished there (for example, cut off when the app was
+    /// closed). The app can accept such an offer without asking again.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Internal`] if the engine can't check.
+    pub async fn continues_in(&self, destination: String) -> Result<bool, BeamError> {
+        let transfer_id = self.manifest.transfer_id();
+        let sender = self.peer_public_key();
+        run(&self.handle, async move {
+            blocking(move || Ok(continues(&PathBuf::from(destination), transfer_id, &sender))).await
+        })
+        .await
+    }
+
     /// Receives the offered files into `destination` (an existing folder); `selection` lists
     /// item IDs to take, empty for all. Returns the saved paths. If it fails or is cancelled,
     /// the sender's next attempt resumes into the same folder.
@@ -199,12 +216,14 @@ impl IncomingOffer {
         let conn = self.conn.clone();
         let manifest = self.manifest.clone();
         let finished = self.finished.clone();
+        let sender = self.peer_public_key();
         run(&self.handle, async move {
             let mut conn = take(&conn).await?;
             let transfer_id = manifest.transfer_id();
-            let receiver =
-                blocking(move || Receiver::open(manifest, &PathBuf::from(destination), &selection))
-                    .await?;
+            let receiver = blocking(move || {
+                Receiver::open_from(manifest, &PathBuf::from(destination), &selection, &sender)
+            })
+            .await?;
             let watched = receiver.progress();
             let saved = reporting(watched, progress, receive_transfer(&mut conn, receiver)).await?;
             finished.insert(transfer_id);
