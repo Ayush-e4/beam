@@ -8,7 +8,7 @@ use tempfile::TempDir;
 use super::*;
 use crate::Receiver;
 use crate::integrity::chunk_hash;
-use crate::messages::ChunkHeader;
+use crate::messages::{ChunkHeader, Resume};
 use crate::sender_files::{DEFAULT_CHUNK_SIZE, prepare_transfer_with_id};
 
 const ID: TransferId = TransferId([9; 16]);
@@ -152,7 +152,12 @@ fn resume_after_crash(first: impl FnMut(&ChunkHeader) -> bool) -> (usize, usize)
 
     let mut r = Receiver::open(manifest, &t.dest, &[]).unwrap();
     assert!(r.resumed());
-    t.sender.resume(ID, &r.have()).unwrap();
+    let resume = Resume {
+        transfer_id: ID,
+        items: Vec::new(),
+        have: r.have(),
+    };
+    t.sender.resume(&resume).unwrap();
     let second_sent = pump(&mut t.sender, &mut r, |_| true);
     assert!(t.sender.is_complete());
     r.finish().unwrap();
@@ -241,10 +246,37 @@ fn bad_replies_are_rejected() {
         item_id: 0,
         chunks: 0..9,
     }];
-    assert!(t.sender.resume(ID, &past_end).is_err());
+    assert!(t.sender.resume(&resume_with(past_end.to_vec())).is_err());
     let stranger = [ChunkRange {
         item_id: 10_000,
         chunks: 0..1,
     }];
-    assert!(t.sender.resume(ID, &stranger).is_err());
+    assert!(t.sender.resume(&resume_with(stranger.to_vec())).is_err());
+}
+
+fn resume_with(have: Vec<ChunkRange>) -> Resume {
+    Resume {
+        transfer_id: ID,
+        items: Vec::new(),
+        have,
+    }
+}
+
+#[test]
+fn a_resume_carries_the_selection_even_without_an_earlier_accept() {
+    // As if the receiver's ACCEPT was lost: the first reply this sender sees is RESUME.
+    let mut t = setup(DEFAULT_WINDOW);
+    let wanted = vec![0, 4];
+    let mut r = Receiver::open(t.sender.manifest().clone(), &t.dest, &wanted).unwrap();
+    t.sender
+        .resume(&Resume {
+            transfer_id: ID,
+            items: wanted,
+            have: r.have(),
+        })
+        .unwrap();
+    pump(&mut t.sender, &mut r, |_| true);
+    assert!(t.sender.is_complete());
+    r.finish().unwrap();
+    assert!(!t.dest.join("album/noise.bin").exists(), "not selected");
 }

@@ -7,7 +7,8 @@
 //! ```text
 //! ACCEPT : transfer_id (16) | count u32 | item_id u32 * count      (count 0 = every item)
 //! REJECT : transfer_id (16) | reason u8
-//! RESUME : transfer_id (16) | count u32 | range * count            (verified chunks it has)
+//! RESUME : transfer_id (16) | count u32 | item_id u32 * count      (selection, as in ACCEPT)
+//!          | count u32 | range * count                             (verified chunks it has)
 //! ACK    : count u32 | range * count                               (newly verified chunks)
 //! CANCEL : transfer_id (16) | reason u8
 //! CHUNK  : item_id u32 | index u64 | encoding u8 | raw_len u32 | chunk hash (32)
@@ -41,6 +42,18 @@ pub struct Accept {
     pub transfer_id: TransferId,
     /// Items wanted; empty means every item.
     pub items: Vec<u32>,
+}
+
+/// Receiver resumes an interrupted transfer. It repeats the selection, because the sender may
+/// never have seen the `ACCEPT` (or may have restarted), and lists what it already has.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Resume {
+    /// The resumed transfer.
+    pub transfer_id: TransferId,
+    /// Items wanted; empty means every item.
+    pub items: Vec<u32>,
+    /// Verified chunks the receiver already has.
+    pub have: Vec<ChunkRange>,
 }
 
 /// Why a receiver declined or a side cancelled.
@@ -118,6 +131,42 @@ impl Accept {
     }
 }
 
+impl Resume {
+    /// Encodes the payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BeamError::Malformed`] if there are more than `u32::MAX` items or ranges.
+    pub fn encode(&self) -> Result<Vec<u8>> {
+        let mut w = Writer::new();
+        w.bytes(&self.transfer_id.0).count(self.items.len())?;
+        for id in &self.items {
+            w.u32(*id);
+        }
+        write_ranges(&mut w, &self.have)?;
+        Ok(w.finish())
+    }
+
+    /// Decodes a payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BeamError::Malformed`] for a truncated payload or an empty or reversed range.
+    pub fn decode(payload: &[u8]) -> Result<Self> {
+        let mut r = Reader::new(payload);
+        let transfer_id = TransferId(r.array()?);
+        let count = r.count(4)?;
+        let items = (0..count).map(|_| r.u32()).collect::<Result<_>>()?;
+        let have = read_ranges(&mut r)?;
+        r.finish()?;
+        Ok(Self {
+            transfer_id,
+            items,
+            have,
+        })
+    }
+}
+
 /// Encodes a `REJECT` or `CANCEL` payload.
 #[must_use]
 pub fn encode_reason(transfer_id: TransferId, reason: Reason) -> Vec<u8> {
@@ -138,31 +187,6 @@ pub fn decode_reason(payload: &[u8]) -> Result<(TransferId, Reason)> {
     let reason = Reason::try_from(r.u8()?)?;
     r.finish()?;
     Ok((id, reason))
-}
-
-/// Encodes a `RESUME` payload: the verified chunks the receiver already has.
-///
-/// # Errors
-///
-/// Returns [`BeamError::Malformed`] if there are more than `u32::MAX` ranges.
-pub fn encode_resume(transfer_id: TransferId, have: &[ChunkRange]) -> Result<Vec<u8>> {
-    let mut w = Writer::new();
-    w.bytes(&transfer_id.0);
-    write_ranges(&mut w, have)?;
-    Ok(w.finish())
-}
-
-/// Decodes a `RESUME` payload.
-///
-/// # Errors
-///
-/// Returns [`BeamError::Malformed`] for a truncated payload or an empty or reversed range.
-pub fn decode_resume(payload: &[u8]) -> Result<(TransferId, Vec<ChunkRange>)> {
-    let mut r = Reader::new(payload);
-    let id = TransferId(r.array()?);
-    let ranges = read_ranges(&mut r)?;
-    r.finish()?;
-    Ok((id, ranges))
 }
 
 /// Encodes an `ACK` payload.

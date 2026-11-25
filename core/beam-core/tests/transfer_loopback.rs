@@ -197,3 +197,31 @@ async fn a_repeated_offer_for_a_finished_transfer_is_confirmed_not_resent() {
     );
     assert_same_tree(&f.source, &f.dest.join("trip"));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_selection_survives_a_lost_accept() {
+    let f = folders();
+    let sender = sender_for(&f);
+    let picked = [0, 2, 5];
+
+    // The receiver opens its journal, then the link dies before its ACCEPT goes out.
+    let (mut a, mut b) = tcp_pair().await;
+    let dest = f.dest.clone();
+    let lose_accept = async move {
+        let manifest = read_offer(&mut b).await.unwrap();
+        drop(Receiver::open(manifest, &dest, &picked).unwrap());
+    };
+    let (sent, ()) = tokio::join!(send_transfer(&mut a, &sender), lose_accept);
+    assert!(sent.is_err());
+
+    // On the next link the receiver resumes; the sender must still send only the selection.
+    let (mut a, mut b) = tcp_pair().await;
+    let resume = async {
+        let manifest = read_offer(&mut b).await?;
+        let receiver = Receiver::open(manifest, &f.dest, &picked)?;
+        receive_transfer(&mut b, receiver).await
+    };
+    let (sent, received) = tokio::join!(send_transfer(&mut a, &sender), resume);
+    assert_eq!(sent.unwrap(), SendOutcome::Delivered);
+    assert_eq!(received.unwrap().len(), picked.len());
+}
