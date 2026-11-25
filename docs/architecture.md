@@ -46,7 +46,11 @@ Shared engine, compiled for Android now and desktop later.
 - Crypto: hardware-accelerated AES-GCM / ChaCha20-Poly1305, Noise-based handshakes.
 - Integrity: BLAKE3 per-chunk hashes, enabling resume.
 - File pipeline: parallel read → hash → encrypt → send; small-file packing; adaptive zstd.
-- Exposed to Kotlin through a thin, versioned JNI layer with explicit error types.
+- Exposed to Kotlin through `beam-ffi`, a thin layer whose bindings UniFFI generates (Kotlin
+  package `app.beam.core`, loaded through JNA). Every fallible call returns a typed
+  `BeamException` with one subclass per error category (network, storage, permission,
+  protocol, crypto, cancelled), so the app picks a message and an action without parsing
+  strings. `core/uniffi-bindgen` pins the generator to the same UniFFI version.
 
 ### WebRTC peer (Android)
 
@@ -108,7 +112,7 @@ Same network → Direct Wi-Fi → Phone hotspot → Internet peer-to-peer → En
 
 ```
 android/   Android app (Gradle, Kotlin)
-core/      beam-core Rust workspace
+core/      Rust workspace: beam-core engine, beam-ffi bindings, fuzz targets
 web/       React PWA (Vite)
 site/      Next.js marketing website
 packages/  Shared React UI: design system, animation helpers
