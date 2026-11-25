@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use beam_core::tcp::TcpAcceptor;
-use beam_core::{DiscoveryKey, Sender, TransferId, prepare_transfer};
+use beam_core::{Beacon, DiscoveryKey, Sender, TransferId, prepare_transfer};
 use tokio::runtime::{Builder, Runtime};
 
 use crate::incoming::Listener;
@@ -81,6 +81,17 @@ impl Engine {
     pub fn set_discovery_generation(&self, generation: u32) {
         self.discovery_generation
             .store(generation, Ordering::Relaxed);
+    }
+
+    /// A new beacon to announce as this device's mDNS service name, for the current discovery
+    /// generation. Only trusted devices can tell it is this device; ask for a new one every 15
+    /// minutes and whenever the network changes.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Crypto`] if the random number generator fails.
+    pub fn new_beacon(&self) -> Result<String, BeamError> {
+        Ok(Beacon::new(&self.discovery_key())?.encode())
     }
 
     /// Reads the picked files and folders and prepares a transfer. Keep the result and call

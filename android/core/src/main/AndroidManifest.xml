@@ -4,4 +4,12 @@
     <!-- The engine opens sockets to other devices. Granted at install, no prompt. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Discovery (mDNS): watching for network changes and receiving multicast on Wi-Fi.
+         Both are granted at install. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Android 17+: people allow local network access; the app asks before discovery. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+
 </manifest>
