@@ -5,14 +5,13 @@
 //! restart at 0 on every connection, matching the receiver.
 
 use std::collections::VecDeque;
-use std::fs;
 
 use crate::compress::{encode_chunk, worth_compressing};
 use crate::integrity::chunk_hash;
 use crate::manifest::{ManifestItem, PACK_ITEM_ID};
 use crate::messages::ChunkHeader;
 use crate::pack::{Packer, is_packable};
-use crate::sender_files::{SourceFile, storage_error};
+use crate::sender_files::SourceFile;
 use crate::{BeamError, Result};
 
 /// Target size of one pack piece before it is cut (1 MiB).
@@ -97,11 +96,5 @@ impl PackQueue {
 }
 
 fn read_small_file(source: &SourceFile) -> Result<Vec<u8>> {
-    source.ensure_unchanged()?;
-    let data = fs::read(&source.path).map_err(|err| storage_error(&source.path, &err))?;
-    if u64::try_from(data.len()).ok() == Some(source.size) {
-        Ok(data)
-    } else {
-        Err(source.changed())
-    }
+    source.read_whole()
 }
