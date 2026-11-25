@@ -12,12 +12,16 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
-/** A device this phone paired with. Holds public information only. */
+/**
+ * A device this phone paired with. [discoveryKey] is the only secret: it lets this phone
+ * recognise the device's discovery beacons on the network.
+ */
 data class TrustedDevice(
     val deviceId: String,
     val publicKey: ByteArray,
     val name: String,
     val cipher: SessionCipher,
+    val discoveryKey: ByteArray,
     val pairedAtMillis: Long
 ) {
     override fun equals(other: Any?): Boolean = other is TrustedDevice &&
@@ -25,14 +29,23 @@ data class TrustedDevice(
         publicKey.contentEquals(other.publicKey) &&
         name == other.name &&
         cipher == other.cipher &&
+        discoveryKey.contentEquals(other.discoveryKey) &&
         pairedAtMillis == other.pairedAtMillis
 
     override fun hashCode(): Int = deviceId.hashCode()
 
+    override fun toString(): String = "TrustedDevice(deviceId=$deviceId, name=$name)"
+
     companion object {
         /** The record to keep after pairing with [device] at [nowMillis]. */
-        fun from(device: PairedDevice, nowMillis: Long) =
-            TrustedDevice(device.deviceId, device.publicKey, device.name, device.cipher, nowMillis)
+        fun from(device: PairedDevice, nowMillis: Long) = TrustedDevice(
+            device.deviceId,
+            device.publicKey,
+            device.name,
+            device.cipher,
+            device.discoveryKey,
+            nowMillis
+        )
     }
 }
 
@@ -116,6 +129,8 @@ class TrustedDevices(private val file: File) {
         write(device.publicKey)
         writeUTF(device.name)
         writeUTF(device.cipher.name)
+        writeShort(device.discoveryKey.size)
+        write(device.discoveryKey)
         writeLong(device.pairedAtMillis)
     }
 
@@ -127,11 +142,13 @@ class TrustedDevices(private val file: File) {
         val cipher =
             SessionCipher.entries.firstOrNull { it.name == cipherName }
                 ?: throw IOException("unknown cipher \"$cipherName\" in trusted-devices file")
-        return TrustedDevice(deviceId, key, name, cipher, readLong())
+        val discoveryKey = ByteArray(readUnsignedShort()).also { readFully(it) }
+        return TrustedDevice(deviceId, key, name, cipher, discoveryKey, readLong())
     }
 
     companion object {
-        private const val FORMAT_VERSION: Byte = 1
+        // 2 added the discovery key. Nothing shipped with 1, so it isn't migrated.
+        private const val FORMAT_VERSION: Byte = 2
 
         /** The app's trusted devices. Not backed up: the identity they trust isn't either. */
         fun forApp(context: Context) =

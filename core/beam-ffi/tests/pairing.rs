@@ -6,7 +6,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use beam_core::PairingInvite;
+use beam_core::{Beacon, DiscoveryKey, PairingInvite};
 use beam_ffi::{
     BeamError, DeviceIdentity, Engine, PairingHost, ProgressListener, SendResult, SessionCipher,
 };
@@ -32,6 +32,28 @@ async fn host(phone: &Phone) -> (Arc<PairingHost>, String) {
         .unwrap();
     let code = host.code(vec!["127.0.0.1".into()]).unwrap();
     (host, code)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn pairing_hands_over_discovery_keys_for_the_current_generation() {
+    let (a, b) = (phone(), phone());
+    a.engine.set_discovery_generation(2);
+    let (host, code) = host(&a).await;
+    let (shown, scanned) = tokio::join!(
+        host.wait_for_device("Phone A".into()),
+        b.engine.pair_with(code, "Phone B".into())
+    );
+    let (shown, scanned) = (shown.unwrap(), scanned.unwrap());
+
+    let a_key = DiscoveryKey::derive(a.identity.keypair(), 2);
+    let b_key = DiscoveryKey::derive(b.identity.keypair(), 0);
+    assert_eq!(scanned.discovery_key, a_key.as_bytes());
+    assert_eq!(shown.discovery_key, b_key.as_bytes());
+
+    // What B stored is enough to recognise A's beacons, and only A's.
+    let stored = DiscoveryKey::from_slice(&scanned.discovery_key).unwrap();
+    assert!(Beacon::new(&a_key).unwrap().matches(&stored));
+    assert!(!Beacon::new(&b_key).unwrap().matches(&stored));
 }
 
 /// A copy of `code` with one field changed.

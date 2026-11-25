@@ -62,8 +62,9 @@ own camera app opens Beam, can follow once the public name and domain are chosen
    from the QR. The scanner rejects any other key, which defeats man-in-the-middle attacks,
    including a malicious signaling server.
    Right after the handshake each side sends a `HELLO`
-   (`major u16 | minor u16 | name_len u8 | name`, UTF-8, at most 64 bytes, no control
-   characters) so the other can list it by name. A different major version ends pairing.
+   (`major u16 | minor u16 | name_len u8 | name | discovery_key`; the name is UTF-8, at most
+   64 bytes, no control characters; the discovery key is 32 bytes) so the other can list it by
+   name and recognise its beacons (see Discovery). A different major version ends pairing.
    The scanner tries every connection hint at once and keeps the first that completes the
    handshake. A code pairs one device; the displayer ignores failed attempts (an old code,
    another device's key) and keeps waiting until it is closed.
