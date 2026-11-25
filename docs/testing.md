@@ -36,6 +36,10 @@ to `master` unless all checks pass.
 - **Engine API tests** (`core/beam-ffi/tests/transfers.rs`): the exported transfer API driven
   as the app drives it: progress on both sides, declining, a device with another key, a
   cancelled receive that resumes, and a repeated offer for a saved transfer.
+  `core/beam-ffi/tests/pairing.rs` pairs two engines (names, keys, matching verification
+  codes, single-use codes), checks that forged codes fail while the host keeps waiting and
+  that an unreachable address doesn't stop pairing, then sends a file using only what
+  pairing returned.
 - **Instrumented tests** for code that needs the real platform, run on a connected phone with
   `./gradlew :core:connectedDebugAndroidTest`: the Android Keystore key wrapper and the
   identity store on top of it, and a 64 MiB loopback transfer between two engines.

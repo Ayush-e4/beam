@@ -10,6 +10,7 @@ mod error;
 mod identity;
 mod incoming;
 mod outgoing;
+mod pairing;
 mod progress;
 mod runtime;
 mod types;
@@ -19,6 +20,7 @@ pub use error::BeamError;
 pub use identity::DeviceIdentity;
 pub use incoming::{IncomingOffer, Listener};
 pub use outgoing::OutgoingTransfer;
+pub use pairing::{PairedDevice, PairingHost};
 pub use progress::ProgressListener;
 pub use types::{DeclineReason, OfferedItem, SendResult, SessionCipher, TransferSummary};
 

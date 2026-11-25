@@ -55,6 +55,20 @@ impl PairingInvite {
         })
     }
 
+    /// The same invite (same token) with other connection hints, for when the displayer's
+    /// addresses change while its code is on screen.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Malformed`] for more than [`MAX_HINTS`] hints or a hint with port 0.
+    pub fn with_hints(&self, hints: Vec<SocketAddr>) -> Result<Self> {
+        check_hints(&hints)?;
+        Ok(Self {
+            hints,
+            ..self.clone()
+        })
+    }
+
     /// The signaling room both devices meet in when a direct connection fails.
     #[must_use]
     pub fn room(&self) -> [u8; 16] {

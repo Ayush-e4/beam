@@ -61,6 +61,12 @@ own camera app opens Beam, can follow once the public name and domain are chosen
 3. Both sides run a **Noise XX handshake** bound to the pairing token and the displayer's key
    from the QR. The scanner rejects any other key, which defeats man-in-the-middle attacks,
    including a malicious signaling server.
+   Right after the handshake each side sends a `HELLO`
+   (`major u16 | minor u16 | name_len u8 | name`, UTF-8, at most 64 bytes, no control
+   characters) so the other can list it by name. A different major version ends pairing.
+   The scanner tries every connection hint at once and keeps the first that completes the
+   handshake. A code pairs one device; the displayer ignores failed attempts (an old code,
+   another device's key) and keeps waiting until it is closed.
 4. Both sides display a short **verification code** derived from the handshake transcript
    (optional confirmation for high-trust pairing).
 5. Each side stores the other as a trusted device.
