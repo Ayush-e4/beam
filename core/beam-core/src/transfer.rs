@@ -1,0 +1,242 @@
+//! Running a transfer over a [`Connection`], so the same code covers TCP and QUIC.
+//!
+//! - **Sender:** [`send_transfer`] offers the manifest, applies the receiver's `ACCEPT`,
+//!   `RESUME` or `REJECT`, then streams chunks while reading `ACK`s as they arrive.
+//! - **Receiver:** [`read_offer`] returns the manifest so the app can ask the user, then
+//!   [`receive_transfer`] (or [`reject_offer`]) answers and receives (see [`receiver_side`]).
+//! - **Done:** once every file is verified and published, the receiver sends an empty `ACK`.
+//!   That tells the sender the files landed, not only that their chunks were acknowledged.
+//! - **Failures:** a side that fails for a reason other than the network sends `CANCEL`
+//!   (failed) before giving up. After a dropped connection, reconnect and call again: the sender
+//!   with the same [`Sender`], the receiver with a [`crate::Receiver`] reopened from its journal,
+//!   which answers with `RESUME`.
+//!
+//! File I/O runs on tokio's blocking pool so it never stalls the async runtime. Nothing here
+//! sets an overall timeout; callers wrap calls in `tokio::time::timeout` to bound a stalled peer.
+
+use std::future::{Future, poll_fn};
+use std::io;
+use std::pin::pin;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::task::Poll;
+
+use tokio::io::{AsyncRead, AsyncWrite};
+
+use crate::frame::{Frame, FrameType};
+use crate::manifest::TransferId;
+use crate::messages::{Accept, Reason, decode_ack, decode_reason, decode_resume, encode_reason};
+use crate::offer::encode_offer;
+use crate::{BeamError, Connection, ErrorCategory, Result, Sender};
+
+pub mod receiver_side;
+pub use receiver_side::{read_offer, receive_transfer, reject_offer};
+
+/// Stream ID used for every transfer frame (one transfer runs per connection).
+pub const TRANSFER_STREAM: u32 = 1;
+
+/// How a send ended when it did not fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SendOutcome {
+    /// Every accepted file was verified and published by the receiver.
+    Delivered,
+    /// The receiver declined the offer.
+    Rejected(Reason),
+}
+
+/// Offers `sender`'s manifest and sends it over `conn`. Keep the same `sender` to resume on a
+/// new connection after a drop; other threads may lock it briefly to read progress.
+///
+/// # Errors
+///
+/// Returns a network error if the connection drops, [`BeamError::Cancelled`] if the receiver
+/// cancels, [`BeamError::SourceChanged`] or storage errors for local files, and protocol
+/// errors for bad replies.
+pub async fn send_transfer<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
+    sender: &Arc<Mutex<Sender>>,
+) -> Result<SendOutcome> {
+    let (offer, transfer_id) = {
+        let s = lock(sender);
+        let manifest = s.manifest();
+        (
+            encode_offer(manifest, TRANSFER_STREAM)?,
+            manifest.transfer_id(),
+        )
+    };
+    let result = async {
+        for frame in &offer {
+            conn.send(frame).await?;
+        }
+        if let Some(reason) = await_reply(conn, sender, transfer_id).await? {
+            return Ok(SendOutcome::Rejected(reason));
+        }
+        stream_chunks(conn, sender, transfer_id).await?;
+        await_done(conn, transfer_id).await?;
+        conn.close().await?;
+        Ok(SendOutcome::Delivered)
+    }
+    .await;
+    fail_with_cancel(conn, transfer_id, result).await
+}
+
+async fn await_reply<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
+    sender: &Arc<Mutex<Sender>>,
+    transfer_id: TransferId,
+) -> Result<Option<Reason>> {
+    let frame = recv_frame(conn).await?;
+    match frame.frame_type {
+        FrameType::Accept => lock(sender).accept(&Accept::decode(&frame.payload)?)?,
+        FrameType::Resume => {
+            let (id, have) = decode_resume(&frame.payload)?;
+            lock(sender).resume(id, &have)?;
+        }
+        FrameType::Reject => return reason_for(transfer_id, &frame.payload).map(Some),
+        _ => return Err(unexpected(&frame, transfer_id)),
+    }
+    Ok(None)
+}
+
+async fn stream_chunks<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
+    sender: &Arc<Mutex<Sender>>,
+    transfer_id: TransferId,
+) -> Result<()> {
+    let mut exhausted = false;
+    loop {
+        while let Some(frame) = try_recv(conn).await? {
+            handle_ack(sender, &frame, transfer_id)?;
+        }
+        let (complete, can_send) = {
+            let s = lock(sender);
+            (s.is_complete(), s.can_send())
+        };
+        if complete {
+            return Ok(());
+        }
+        if can_send && !exhausted {
+            let shared = Arc::clone(sender);
+            match blocking(move || lock(&shared).next_chunk()).await? {
+                Some(payload) => {
+                    let frame = Frame::new(FrameType::Chunk, TRANSFER_STREAM, payload)?;
+                    conn.send(&frame).await?;
+                }
+                None => exhausted = true,
+            }
+            continue;
+        }
+        let frame = recv_frame(conn).await?;
+        handle_ack(sender, &frame, transfer_id)?;
+    }
+}
+
+fn handle_ack(sender: &Arc<Mutex<Sender>>, frame: &Frame, transfer_id: TransferId) -> Result<()> {
+    if frame.frame_type != FrameType::Ack {
+        return Err(unexpected(frame, transfer_id));
+    }
+    let ranges = decode_ack(&frame.payload)?;
+    if ranges.is_empty() {
+        return Err(BeamError::Malformed(
+            "receiver finished before every chunk was acknowledged".into(),
+        ));
+    }
+    lock(sender).handle_ack(&ranges);
+    Ok(())
+}
+
+async fn await_done<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
+    transfer_id: TransferId,
+) -> Result<()> {
+    let frame = recv_frame(conn).await?;
+    if frame.frame_type == FrameType::Ack && decode_ack(&frame.payload)?.is_empty() {
+        Ok(())
+    } else {
+        Err(unexpected(&frame, transfer_id))
+    }
+}
+
+/// Locks the shared sender. A panic while it was locked cannot leave it unsafe to use: the next
+/// `ACCEPT` or `RESUME` rebuilds its plan, so a poisoned lock is simply recovered.
+fn lock(sender: &Mutex<Sender>) -> MutexGuard<'_, Sender> {
+    sender.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Waits for the next frame; the peer closing the connection is an error mid-transfer.
+pub(crate) async fn recv_frame<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
+) -> Result<Frame> {
+    conn.recv().await?.ok_or_else(closed)
+}
+
+/// Returns a frame that has already arrived, without waiting. Relies on
+/// [`Connection::recv`] being cancel-safe.
+async fn try_recv<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
+) -> Result<Option<Frame>> {
+    let mut recv = pin!(conn.recv());
+    poll_fn(|cx| match recv.as_mut().poll(cx) {
+        Poll::Ready(result) => {
+            Poll::Ready(result.and_then(|frame| frame.ok_or_else(closed).map(Some)))
+        }
+        Poll::Pending => Poll::Ready(Ok(None)),
+    })
+    .await
+}
+
+/// Runs blocking file work on tokio's blocking pool.
+pub(crate) async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T> + Send + 'static,
+) -> Result<T> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|err| BeamError::storage(io::Error::other(format!("file task failed: {err}"))))?
+}
+
+/// A `REJECT` or `CANCEL` for this transfer; one for another transfer is a protocol error.
+pub(crate) fn reason_for(transfer_id: TransferId, payload: &[u8]) -> Result<Reason> {
+    let (id, reason) = decode_reason(payload)?;
+    if id == transfer_id {
+        Ok(reason)
+    } else {
+        Err(BeamError::Malformed("reply is for another transfer".into()))
+    }
+}
+
+/// The error for a frame that should not arrive now. A `CANCEL` from the peer becomes
+/// [`BeamError::Cancelled`].
+pub(crate) fn unexpected(frame: &Frame, transfer_id: TransferId) -> BeamError {
+    if frame.frame_type == FrameType::Cancel && reason_for(transfer_id, &frame.payload).is_ok() {
+        return BeamError::Cancelled;
+    }
+    BeamError::Malformed(format!("unexpected {:?} frame", frame.frame_type))
+}
+
+/// Tells the peer we gave up, unless the link is gone or the peer cancelled first.
+pub(crate) async fn fail_with_cancel<S: AsyncRead + AsyncWrite + Unpin, T>(
+    conn: &mut Connection<S>,
+    transfer_id: TransferId,
+    result: Result<T>,
+) -> Result<T> {
+    let peer_should_know = result.as_ref().err().is_some_and(|err| {
+        !matches!(
+            err.category(),
+            ErrorCategory::Network | ErrorCategory::Cancelled
+        )
+    });
+    if peer_should_know {
+        let payload = encode_reason(transfer_id, Reason::Failed);
+        if let Ok(frame) = Frame::new(FrameType::Cancel, TRANSFER_STREAM, payload) {
+            // Best effort: the original error is what the caller needs to see.
+            let _ = conn.send(&frame).await;
+        }
+    }
+    result
+}
+
+pub(crate) fn closed() -> BeamError {
+    BeamError::network(io::Error::new(
+        io::ErrorKind::ConnectionAborted,
+        "the peer closed the connection mid-transfer",
+    ))
+}

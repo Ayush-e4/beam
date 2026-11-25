@@ -16,7 +16,7 @@ rcgen = { version = "0.14.10", default-features = false, features = ["ring", "cr
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std"] }
 snow = "0.10.0"
 thiserror = "2.0.21"
-tokio = { version = "1.54.1", features = ["net", "io-util", "rt"] }
+tokio = { version = "1.54.1", features = ["net", "io-util", "rt", "time"] }
 zeroize = "1.9.2"
 zstd = { version = "0.14.4", default-features = false }
 
