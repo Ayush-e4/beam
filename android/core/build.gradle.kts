@@ -185,6 +185,8 @@ tasks.withType<Test>().configureEach {
 dependencies {
     // The AAR carries JNA's Android native part; tests on the JVM need the plain JAR instead.
     implementation(libs.jna) { artifact { type = "aar" } }
+    // UniFFI turns the engine's async calls into suspend functions.
+    api(libs.kotlinx.coroutines.core)
     testImplementation(libs.jna)
     testImplementation(libs.junit)
     // Run on a connected phone: ./gradlew :core:connectedDebugAndroidTest

@@ -31,10 +31,14 @@ to `master` unless all checks pass.
 - **Engine bridge tests** (`android/core`): JVM tests call the Rust engine through the
   generated UniFFI bindings (built for the host and loaded with JNA), covering results and
   typed `BeamException`s, plus the identity store (first launch, reload, lost wrapping key,
-  damaged file, no plaintext key on disk).
+  damaged file, no plaintext key on disk), and loopback transfers between two engines,
+  including cancelling a receive coroutine and resuming.
+- **Engine API tests** (`core/beam-ffi/tests/transfers.rs`): the exported transfer API driven
+  as the app drives it: progress on both sides, declining, a device with another key, a
+  cancelled receive that resumes, and a repeated offer for a saved transfer.
 - **Instrumented tests** for code that needs the real platform, run on a connected phone with
   `./gradlew :core:connectedDebugAndroidTest`: the Android Keystore key wrapper and the
-  identity store on top of it.
+  identity store on top of it, and a 64 MiB loopback transfer between two engines.
 - **Compose UI tests** for each screen and key flows (pairing, send, receive, history).
 - **Instrumented tests** on emulators for services, permissions and storage.
 - **Real-device test matrix** (manual and scripted over adb): Samsung, Pixel, Xiaomi, OnePlus,

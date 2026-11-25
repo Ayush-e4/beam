@@ -5,11 +5,22 @@
 //! returns a typed [`BeamError`], which Kotlin sees as `BeamException` with one subclass per
 //! category.
 
+mod engine;
 mod error;
 mod identity;
+mod incoming;
+mod outgoing;
+mod progress;
+mod runtime;
+mod types;
 
+pub use engine::Engine;
 pub use error::BeamError;
 pub use identity::DeviceIdentity;
+pub use incoming::{IncomingOffer, Listener};
+pub use outgoing::OutgoingTransfer;
+pub use progress::ProgressListener;
+pub use types::{DeclineReason, OfferedItem, SendResult, SessionCipher, TransferSummary};
 
 use beam_core::ProtocolVersion;
 
