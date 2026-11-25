@@ -5,13 +5,13 @@ import android.util.Log
 import app.beam.core.PairedDevice
 import app.beam.core.SessionCipher
 import app.beam.core.TrustedKeys
+import app.beam.core.storage.writeAtomically
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.EOFException
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 
 /**
@@ -130,16 +130,7 @@ class TrustedDevices(
             out.writeInt(updated.size)
             updated.forEach { out.writeDevice(it) }
         }
-        file.parentFile?.mkdirs()
-        val temporary = File(file.path + ".tmp")
-        FileOutputStream(temporary).use { out ->
-            out.write(bytes.toByteArray())
-            out.fd.sync()
-        }
-        if (!temporary.renameTo(file)) {
-            temporary.delete()
-            throw IOException("could not save trusted devices to $file")
-        }
+        writeAtomically(file, bytes.toByteArray())
         devices = updated
     }
 
