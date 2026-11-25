@@ -73,8 +73,23 @@ own camera app opens Beam, can follow once the public name and domain are chosen
 
 ## Discovery (trusted devices)
 
-- **LAN:** mDNS service `_beam._udp` advertising device ID and ports (no personal names unless
-  the user opts in).
+- **LAN:** mDNS service `_beam._tcp`. The instance name is a **beacon**, never the device ID or
+  the user's name, and the SRV record gives the port of the device's listener. TXT holds only
+  `v` (protocol major version).
+- **Beacon:** `nonce (8 bytes) | tag (8 bytes)` as 26 base32 characters, where
+  `tag = BLAKE3-keyed(discovery_key, "beam beacon" | nonce)[..8]`. The device picks a new random
+  nonce every 15 minutes and whenever its network changes, so the name it announces can't be
+  used to follow it across networks or over time.
+- **Discovery key:** 32 bytes,
+  `BLAKE3-derive_key("beam 2026-11-25 discovery key v1", static private key | generation u32 LE)`.
+  It is sent only inside the encrypted pairing `HELLO`, and each side keeps the other's key
+  with the trusted device. A device recognises a peer by finding which stored key matches the
+  beacon's tag; to everyone else the beacon is random. Removing a trusted device moves this
+  device to the next generation, so the removed device can no longer recognise it; the
+  remaining trusted devices learn the new key the next time the two connect.
+- After recognising a beacon, a device still connects with the Noise handshake for the
+  stored public key, so a forged or replayed beacon can waste a connection attempt but
+  can't impersonate anyone.
 - **Signaling:** trusted devices can meet in a room derived from their shared secret.
 - **Direct Wi-Fi:** Wi-Fi Aware publish/subscribe with the same service name.
 

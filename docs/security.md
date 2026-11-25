@@ -66,7 +66,9 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
 
 ## Privacy
 
-- mDNS advertisements contain a random device ID, not the user's name, unless they opt in.
+- mDNS advertisements contain a beacon that changes every 15 minutes and on every network
+  change. Only trusted devices can link it to the device (see `protocol.md`, Discovery);
+  it never contains the device ID or the user's name.
 - Logs contain no file names or contents; crash reports are opt-in.
 - Play Store data-safety labels must accurately describe this behaviour.
 

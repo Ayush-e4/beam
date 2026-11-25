@@ -86,3 +86,10 @@ path = "fuzz_targets/pairing_invite.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "beacon"
+path = "fuzz_targets/beacon.rs"
+test = false
+doc = false
+bench = false

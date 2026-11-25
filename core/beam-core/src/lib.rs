@@ -8,6 +8,7 @@ mod base32;
 pub mod chunk_set;
 pub mod compress;
 pub mod connection;
+pub mod discovery;
 pub mod error;
 pub mod frame;
 pub mod handshake;
@@ -41,6 +42,7 @@ mod wire;
 
 pub use chunk_set::ChunkSet;
 pub use connection::Connection;
+pub use discovery::{Beacon, DiscoveryKey};
 pub use error::{BeamError, ErrorCategory, Result};
 pub use frame::{Decoded, Frame, FrameType};
 pub use handshake::{Cipher, Established, Handshake, Role};
