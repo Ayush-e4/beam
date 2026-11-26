@@ -1,0 +1,21 @@
+[package]
+name = "beam-cli"
+version = "0.1.0"
+description = "A command-line Beam device for the Mac: pairs, sends and receives with phones on the same network. A test peer and a debugging tool."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "beam"
+path = "src/main.rs"
+
+[dependencies]
+beam-ffi = { path = "../beam-ffi" }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
