@@ -40,6 +40,12 @@ Output is one line per event (`LISTENING`, `RECEIVED`, `SENT`, `DECLINED`, …) 
 read it. `tests/two_devices.rs` pairs two CLI devices over loopback, sends a file and checks
 that a device that never paired is declined.
 
+`tools/lan-test.sh` (`MIB=64` by default) runs the phone on USB against the CLI over the real
+Wi-Fi: the phone pairs with `beam pair`'s code (both sides must show the same verification
+code), sends the Mac random data, then receives some from it, and the script prints each
+direction's speed. The phone side is `MacPeerOnDeviceTest`, skipped in ordinary test runs. To
+tell Beam's speed from the network's, compare with raw TCP (`nc`) between the same two devices.
+
 ### Android app
 
 - **Unit tests** for ViewModels, repositories and use cases.
