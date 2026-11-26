@@ -19,7 +19,7 @@
 //! ```
 
 use std::fmt::Write as _;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -56,7 +56,14 @@ async fn main() -> Result<()> {
     let invite = PairingInvite::decode(&text)?;
     let local = StaticKeypair::generate()?;
 
-    let server = WebTransportServer::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))?;
+    // BEAM_PEER_ADDR=0.0.0.0 serves the local network, to run this on a phone over Wi-Fi.
+    let ip = match std::env::var("BEAM_PEER_ADDR") {
+        Ok(addr) => addr
+            .parse::<IpAddr>()
+            .map_err(|_| BeamError::Malformed(format!("BEAM_PEER_ADDR {addr} isn't an IP")))?,
+        Err(_) => IpAddr::V4(Ipv4Addr::LOCALHOST),
+    };
+    let server = WebTransportServer::bind(SocketAddr::from((ip, 0)))?;
     println!(
         "LISTENING port={} hash={}",
         server.local_addr()?.port(),

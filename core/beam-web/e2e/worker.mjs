@@ -8,9 +8,9 @@ await init();
 let identity;
 let invite;
 
-async function connect(port, hash) {
+async function connect(port, hash, host = '127.0.0.1') {
   const value = new Uint8Array(hash.match(/../g).map((byte) => parseInt(byte, 16)));
-  const transport = new WebTransport(`https://127.0.0.1:${port}/beam`, {
+  const transport = new WebTransport(`https://${host}:${port}/beam`, {
     serverCertificateHashes: [{ algorithm: 'sha-256', value }],
   });
   await transport.ready;
@@ -32,8 +32,8 @@ const ops = {
     return { invite: invite.text() };
   },
 
-  async receive({ port, hash, decline }) {
-    const { transport, connection } = await connect(port, hash);
+  async receive({ port, hash, host, decline }) {
+    const { transport, connection } = await connect(port, hash, host);
     try {
       const offer = await connection.readOffer();
       const offered = offer.files.map(({ path, size }) => ({ path, size }));
@@ -60,8 +60,8 @@ const ops = {
     }
   },
 
-  async send({ port, hash, files }) {
-    const { transport, connection } = await connect(port, hash);
+  async send({ port, hash, host, files }) {
+    const { transport, connection } = await connect(port, hash, host);
     try {
       const progress = [];
       const started = performance.now();
