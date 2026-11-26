@@ -1,11 +1,13 @@
 //! Plays the phone for the browser engine's end-to-end tests: reads the invite a browser
-//! shows, serves WebTransport, pairs as the device that scanned the code, then either echoes
-//! every frame back until the browser closes, sends files to it, or receives files from it.
+//! shows, serves WebTransport and prints the sealed offer it would post in the signaling room
+//! (hex), pairs as the device that scanned the code and swaps names, then either echoes every
+//! frame back until the browser closes, sends files to it, or receives files from it.
 //!
 //! ```text
 //! cargo run -p beam-core --example webtransport_peer -- 'BEAM1:…'
-//! LISTENING port=54321 hash=3f9c…
+//! OFFER sealed=01a4…
 //! PAIRED code=042 917
+//! BROWSER name=Test browser
 //! ECHOED frames=4
 //!
 //! cargo run -p beam-core --example webtransport_peer -- 'BEAM1:…' send trip/ notes.txt
@@ -27,9 +29,13 @@ use std::time::{Duration, Instant};
 use beam_core::messages::Reason;
 use beam_core::webtransport::WebTransportServer;
 use beam_core::{
-    BeamError, Connection, Handshake, PairingInvite, Receiver, Result, Role, Sender, StaticKeypair,
-    prepare_transfer, read_offer, receive_transfer, reject_offer, send_transfer,
+    BeamError, Connection, DiscoveryKey, Handshake, Hello, PairingInvite, Receiver, Result, Role,
+    Sender, SignalFrom, SignalMessage, SignalSeal, StaticKeypair, exchange_hello, prepare_transfer,
+    read_offer, receive_transfer, reject_offer, send_transfer,
 };
+
+/// The name this peer gives when pairing.
+const NAME: &str = "Test phone";
 
 /// How long to stay up after the echo, for the last acknowledgements to cross.
 const LINGER: Duration = Duration::from_secs(1);
@@ -57,11 +63,12 @@ async fn main() -> Result<()> {
     let local = StaticKeypair::generate()?;
 
     let server = WebTransportServer::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))?;
-    println!(
-        "LISTENING port={} hash={}",
-        server.local_addr()?.port(),
-        hex(&server.certificate_hash())
-    );
+    let offer = SignalMessage::Offer {
+        hints: vec![server.local_addr()?],
+        certificate_hash: server.certificate_hash(),
+    };
+    let sealed = SignalSeal::for_invite(&invite)?.seal(SignalFrom::Scanner, &offer)?;
+    println!("OFFER sealed={}", hex(&sealed));
     let (stream, _) = server.accept().await?;
     let handshake = Handshake::pairing_scanner(
         &local,
@@ -72,6 +79,9 @@ async fn main() -> Result<()> {
     )?;
     let mut connection = Connection::establish(stream, handshake).await?;
     println!("PAIRED code={}", connection.verification_code());
+    let hello = Hello::new(NAME, DiscoveryKey::derive(&local, 0));
+    let browser = exchange_hello(&mut connection, &hello).await?;
+    println!("BROWSER name={}", browser.name);
 
     match mode {
         Mode::Echo => echo(&mut connection).await?,

@@ -38,9 +38,15 @@ export function startPeer(peerBin, args) {
   return { line, exited, seen, kill: () => peer.kill(), stderr: () => stderr };
 }
 
-// `port=… hash=…` from the peer's LISTENING line, as `{ port, hash }`.
-export function listening(line) {
-  return Object.fromEntries(line.split(' ').map((kv) => kv.split('=')));
+// The sealed offer (hex) the peer would post in the signaling room, once it serves. The
+// browser opens it with its invite to learn where to connect and which certificate to pin.
+export const offered = (peer) => peer.line('OFFER sealed=');
+
+// Reads the peer's pairing lines: its verification code and the name the browser gave.
+export async function paired(peer) {
+  const code = await peer.line('PAIRED code=');
+  const browserName = await peer.line('BROWSER name=');
+  return { code, browserName };
 }
 
 // A page on ORIGIN that serves the engine (`/beam_web.js`, `/beam_web_bg.wasm` from `pkgDir`)

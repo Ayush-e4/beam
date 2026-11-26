@@ -8,6 +8,7 @@ mod errors;
 mod js_stream;
 pub mod opfs_file;
 pub mod opfs_staging;
+mod pairing;
 mod progress;
 mod receiving;
 mod sending;
@@ -39,7 +40,7 @@ fn cipher(name: &str) -> Result<Cipher, JsValue> {
 /// site can read (`IndexedDB`), so paired phones recognise the browser next time.
 #[wasm_bindgen]
 pub struct Identity {
-    keypair: StaticKeypair,
+    pub(crate) keypair: StaticKeypair,
 }
 
 #[wasm_bindgen]
@@ -93,7 +94,7 @@ impl Identity {
 /// The pairing code this browser shows for the phone to scan.
 #[wasm_bindgen]
 pub struct Invite {
-    invite: PairingInvite,
+    pub(crate) invite: PairingInvite,
 }
 
 #[wasm_bindgen]

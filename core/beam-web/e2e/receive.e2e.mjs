@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
-import { ask, check, listening, openPage, startPeer, startWorker } from './harness.mjs';
+import { ask, check, offered, openPage, paired, startPeer, startWorker } from './harness.mjs';
 
 const [pkgDir, peerBin] = process.argv.slice(2);
 const MIB = 1024 * 1024;
@@ -41,16 +41,17 @@ async function receivesFiles(page, files) {
   const { invite } = await ask(page, { op: 'invite' });
   const peer = startPeer(peerBin, [invite, 'send', ...files.send]);
   try {
-    const { port, hash } = listening(await peer.line('LISTENING '));
-    const result = await ask(page, { op: 'receive', port, hash });
+    const result = await ask(page, { op: 'receive', sealed: await offered(peer) });
     check(!result.failed, result.failed ? `receive: ${result.failed}\n${peer.stderr()}` : 'received');
-    check(result.code === (await peer.line('PAIRED code=')), 'both sides show the same code');
+    const { code, browserName } = await paired(peer);
+    check(result.code === code, 'both sides show the same code');
+    check(result.phone === 'Test phone' && browserName === 'Test browser', 'each learns the other\'s name');
     const sent = await peer.line('SENT outcome=', TRANSFER_MS);
     check(sent.startsWith('Delivered '), `the phone hears the files were delivered (${sent})`);
 
     const names = Object.keys(files.expected).sort();
-    const offered = result.offered.map((f) => f.path).sort();
-    check(JSON.stringify(offered) === JSON.stringify(names), `the offer lists ${names.length} files`);
+    const listed = result.offered.map((f) => f.path).sort();
+    check(JSON.stringify(listed) === JSON.stringify(names), `the offer lists ${names.length} files`);
     for (const file of result.files) {
       check(file.sha256 === files.expected[file.path], `${file.path} arrived intact`);
       check(file.name === path.basename(file.path), `${file.path} is named ${file.name}`);
@@ -72,10 +73,9 @@ async function declines(page, files) {
   const { invite } = await ask(page, { op: 'invite' });
   const peer = startPeer(peerBin, [invite, 'send', ...files.send]);
   try {
-    const { port, hash } = listening(await peer.line('LISTENING '));
-    const result = await ask(page, { op: 'receive', port, hash, decline: true });
+    const result = await ask(page, { op: 'receive', sealed: await offered(peer), decline: true });
     check(result.declined, result.failed ?? 'the browser declined');
-    await peer.line('PAIRED code=');
+    await paired(peer);
     const sent = await peer.line('SENT outcome=');
     check(sent.startsWith('Rejected(UserDeclined)'), `the phone hears it was declined (${sent})`);
   } finally {
