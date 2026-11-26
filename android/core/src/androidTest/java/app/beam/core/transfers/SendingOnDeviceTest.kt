@@ -9,6 +9,10 @@ import app.beam.core.SessionCipher
 import app.beam.core.TrustedKeys
 import app.beam.core.discovery.NearbyDevice
 import app.beam.core.files.Inbox
+import app.beam.core.history.HistoryEntry
+import app.beam.core.history.HistoryFile
+import app.beam.core.history.Outcome
+import app.beam.core.history.TransferHistory
 import app.beam.core.trust.TrustedDevice
 import java.io.File
 import java.net.InetAddress
@@ -17,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -26,6 +31,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,7 +47,10 @@ class SendingOnDeviceTest {
     private val phone = DeviceIdentity.generate()
     private val phoneEngine = Engine(phone)
     private val laptopEngine = Engine(DeviceIdentity.generate())
-    private val receiving = Receiving(context, phoneEngine, NobodyTrusted, runner, CIPHER)
+    private val sentHistory = TransferHistory(File(root, "laptop-history.bin"))
+    private val receivedHistory = TransferHistory(File(root, "phone-history.bin"))
+    private val receiving =
+        Receiving(context, phoneEngine, NobodyTrusted, runner, CIPHER, receivedHistory)
     private val pendingFile = File(root, "pending-sends.bin")
     private val name = "beam-sending-test-${System.nanoTime()}"
     private val device = TrustedDevice(
@@ -80,6 +89,19 @@ class SendingOnDeviceTest {
         assertEquals(TransferState.Done, ended(id))
         assertEquals(emptyList<PendingSend>(), PendingSends(pendingFile).all())
         assertArrayEquals(bytes, File(Inbox.folder(context), "$name.bin").readBytes())
+
+        val sent = sentHistory.all().single()
+        assertEquals(Outcome.DONE, sent.outcome)
+        assertEquals("Phone", sent.deviceName)
+        assertEquals(listOf(HistoryFile("$name.bin", MIB.toLong())), sent.files)
+        val received = withTimeout(WAIT_MS) { recorded(receivedHistory) }
+        assertEquals(sent.transferId, received.transferId)
+        assertEquals(Outcome.DONE, received.outcome)
+        assertNull("the laptop isn't trusted, so its name isn't known", received.deviceName)
+        assertEquals(
+            listOf(File(Inbox.folder(context), "$name.bin").path),
+            received.savedPaths
+        )
     }
 
     @Test
@@ -92,6 +114,7 @@ class SendingOnDeviceTest {
         assertEquals(TransferState.Cancelled, ended(first))
         assertEquals(1, PendingSends(pendingFile).all().size)
         assertTrue("part of it is on the phone", staged().isNotEmpty())
+        assertEquals(Outcome.INTERRUPTED, sentHistory.all().single().outcome)
 
         // The app starts again and the phone is nearby: the send resumes by itself, and the
         // phone continues it without asking.
@@ -105,6 +128,7 @@ class SendingOnDeviceTest {
         assertEquals(emptyList<PendingOffer>(), receiving.offers.value)
         assertEquals(emptyList<PendingSend>(), PendingSends(pendingFile).all())
         assertArrayEquals(sha256(source), sha256(File(Inbox.folder(context), "$name.bin")))
+        assertEquals("one entry, now done", Outcome.DONE, sentHistory.all().single().outcome)
     }
 
     @Test
@@ -123,6 +147,12 @@ class SendingOnDeviceTest {
         assertTrue(receiving.decline(nextOffer().id))
         assertEquals(TransferState.Declined(DeclineReason.USER_DECLINED), ended(declined))
         assertEquals(emptyList<PendingSend>(), PendingSends(pendingFile).all())
+
+        assertEquals(
+            listOf(Outcome.DECLINED, Outcome.CANCELLED),
+            sentHistory.all().map { it.outcome }
+        )
+        assertTrue(receivedHistory.all().any { it.outcome == Outcome.DECLINED })
     }
 
     @Test
@@ -135,13 +165,29 @@ class SendingOnDeviceTest {
         pending.add(send("old", device.deviceId, now - week - 1))
         pending.add(send("untrusted", "someone-else", now))
         pending.add(send("kept", device.deviceId, now - week + 60_000))
+        val interrupted = HistoryEntry(
+            "old", Direction.SENDING, device.deviceId, device.name, "x", emptyList(), 1, 1,
+            Outcome.INTERRUPTED, null, now - week - 1
+        )
+        sentHistory.record(interrupted)
 
         // The phone isn't nearby, so nothing starts; only the two are forgotten.
-        Sending(context, laptopEngine, runner, pending) { now }.resume(emptyList(), listOf(device))
+        Sending(context, laptopEngine, runner, pending, sentHistory) { now }
+            .resume(emptyList(), listOf(device))
         assertEquals(listOf("kept"), PendingSends(pendingFile).all().map { it.transferId })
+        assertEquals(Outcome.NOT_DELIVERED, sentHistory.all().single().outcome)
     }
 
-    private fun sending() = Sending(context, laptopEngine, runner, PendingSends(pendingFile))
+    private fun sending() =
+        Sending(context, laptopEngine, runner, PendingSends(pendingFile), sentHistory)
+
+    /** The receiver records after the sender hears "done", so wait for it. */
+    private suspend fun recorded(history: TransferHistory): HistoryEntry {
+        while (true) {
+            history.all().firstOrNull()?.let { return it }
+            delay(20)
+        }
+    }
 
     private fun source(bytes: ByteArray) = File(root, "$name.bin").apply {
         parentFile?.mkdirs()
