@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.Log
 import app.beam.core.BeamException
 import app.beam.core.Engine
+import app.beam.core.NetworkFailure
 import app.beam.core.OutgoingTransfer
 import app.beam.core.ProgressListener
 import app.beam.core.SendResult
@@ -170,9 +171,13 @@ class Sending(
             }
         }
         if (unreachable != null && networks.behindVpn) {
-            throw BeamException.Network(vpnBlocks(device.name, unreachable.reason()))
+            throw BeamException.Network(
+                vpnBlocks(device.name, unreachable.reason()),
+                unreachable.failure
+            )
         }
-        throw unreachable ?: BeamException.Network("${device.name} has no address")
+        throw unreachable
+            ?: BeamException.Network("${device.name} has no address", NetworkFailure.OTHER)
     }
 
     private suspend fun prepare(

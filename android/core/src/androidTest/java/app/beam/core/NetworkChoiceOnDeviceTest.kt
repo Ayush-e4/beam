@@ -79,6 +79,18 @@ class NetworkChoiceOnDeviceTest {
         }
     }
 
+    @Test
+    fun aPortNothingListensOnIsRefused() {
+        val closed = java.net.ServerSocket(0).use { it.localPort }
+        val outgoing = runBlocking { laptop.prepareSend(listOf(source().path)) }
+        val error = assertThrows(BeamException.Network::class.java) {
+            runBlocking {
+                outgoing.sendTo("127.0.0.1", closed.toUShort(), phone.publicKey(), CIPHER, Quiet)
+            }
+        }
+        assertEquals(NetworkFailure.REFUSED, error.failure)
+    }
+
     private fun wifiNetwork(): Network {
         val network = connectivity.activeNetwork?.takeIf { network ->
             connectivity.getNetworkCapabilities(network)

@@ -2,6 +2,7 @@ package app.beam.core.transfers
 
 import app.beam.core.BeamException
 import app.beam.core.DeclineReason
+import app.beam.core.NetworkFailure
 import app.beam.core.OfferedItem
 import app.beam.core.TransferSummary
 import app.beam.core.history.HistoryFile
@@ -39,7 +40,7 @@ class TransferLogTest {
         assertEquals(
             "the link dropped",
             Outcome.INTERRUPTED to "gone",
-            historyOutcome(failed, BeamException.Network("gone"))
+            historyOutcome(failed, BeamException.Network("gone", NetworkFailure.NO_ANSWER))
         )
         assertEquals(
             Outcome.FAILED to "gone",
