@@ -99,6 +99,10 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
 - Incoming connections are handled side by side: at most 4 per address and 32 in total may be
   in their handshake or offer at once, with 10 s for the handshake and 30 s for the offer, so
   a device that connects and stays silent can't stop anyone else from sending.
+- Browsers connecting over WebTransport are set up side by side the same way: at most 2 per
+  address and 8 in total may be opening their session at once, with 10 s to open it; more are
+  refused at the QUIC level. 0-RTT is off (certificates are new on every start, so it could
+  never be used).
 - Broadcast features (later versions) require explicit opt-in on each receiver.
 
 ## Process
