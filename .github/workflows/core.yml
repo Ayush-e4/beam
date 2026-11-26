@@ -2,10 +2,12 @@ name: Core (Rust)
 
 on:
   pull_request:
-    paths: ['core/**', 'rust-toolchain.toml', '.github/workflows/core.yml']
+    paths:
+      ['core/**', 'tools/web-engine-test.sh', 'rust-toolchain.toml', '.github/workflows/core.yml']
   push:
     branches: [master]
-    paths: ['core/**', 'rust-toolchain.toml', '.github/workflows/core.yml']
+    paths:
+      ['core/**', 'tools/web-engine-test.sh', 'rust-toolchain.toml', '.github/workflows/core.yml']
 
 permissions:
   contents: read
@@ -63,6 +65,37 @@ jobs:
         run: cargo clippy --locked -p beam-core --no-default-features --target wasm32-unknown-unknown -- -D warnings
       - name: Test without the native transports
         run: cargo test --locked -p beam-core --no-default-features
+
+  web-engine:
+    # The WebAssembly engine in headless Chromium pairs with a native peer over WebTransport.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+          key: web-engine
+      - uses: taiki-e/install-action@v2
+        with:
+          # Must match the wasm-bindgen crate in core/Cargo.lock; the test script checks.
+          tool: wasm-bindgen-cli@0.2.130
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install Node packages and Chromium
+        run: |
+          npm ci
+          npx playwright-core install --with-deps chromium
+      - name: Use clang for the C parts (ring, zstd)
+        run: |
+          echo "CC_wasm32_unknown_unknown=clang" >> "$GITHUB_ENV"
+          echo "AR_wasm32_unknown_unknown=$(command -v llvm-ar || ls /usr/bin/llvm-ar-* | sort -V | tail -1)" >> "$GITHUB_ENV"
+      - name: Pair the browser engine with a native peer
+        run: tools/web-engine-test.sh
 
   m1-exit:
     # Fault-injection transfers of a 1 GiB file over TCP and lossy QUIC, in release mode. The
