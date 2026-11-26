@@ -49,6 +49,11 @@ check that:
 - a transfer resumes after the worker stops mid-transfer;
 - a second tab can't open a transfer that is in progress.
 
+`tests/transfer_loops.rs` runs the real `send_transfer` and `receive_transfer` there, over an
+encrypted connection on an in-memory pipe, into OPFS. One test sends with one piece in flight,
+so only the receiver's ack timer (the browser's `setTimeout`) can keep it moving: it hangs if
+the timers break.
+
 ### Mac command-line device (`core/beam-cli`)
 
 A second Beam device for when there's no second phone: `beam` pairs, sends and receives with

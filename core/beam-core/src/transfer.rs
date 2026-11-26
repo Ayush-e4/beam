@@ -14,8 +14,9 @@
 //!   with the same [`Sender`], the receiver with a [`crate::Receiver`] reopened from its journal,
 //!   which answers with `RESUME`.
 //!
-//! File I/O runs on tokio's blocking pool so it never stalls the async runtime. Nothing here
-//! sets an overall timeout; callers wrap calls in `tokio::time::timeout` to bound a stalled peer.
+//! The loops run on tokio natively and in a browser worker (see [`crate::runtime`]): file work
+//! never stalls the network either way. Nothing here sets an overall timeout; callers bound a
+//! stalled peer with their own (`tokio::time::timeout` natively).
 
 use std::future::{Future, poll_fn};
 use std::io;
@@ -29,6 +30,7 @@ use crate::frame::{Frame, FrameType};
 use crate::manifest::TransferId;
 use crate::messages::{Accept, Reason, Resume, decode_ack, decode_reason, encode_reason};
 use crate::offer::encode_offer;
+pub(crate) use crate::runtime::blocking;
 use crate::{BeamError, Connection, ErrorCategory, Result, Sender};
 
 pub mod receiver_side;
@@ -214,15 +216,6 @@ async fn try_recv<S: AsyncRead + AsyncWrite + Unpin>(
         Poll::Pending => Poll::Ready(Ok(None)),
     })
     .await
-}
-
-/// Runs blocking file work on tokio's blocking pool.
-pub(crate) async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T> + Send + 'static,
-) -> Result<T> {
-    tokio::task::spawn_blocking(work)
-        .await
-        .map_err(|err| BeamError::storage(io::Error::other(format!("file task failed: {err}"))))?
 }
 
 /// A `REJECT` or `CANCEL` for this transfer; one for another transfer is a protocol error.

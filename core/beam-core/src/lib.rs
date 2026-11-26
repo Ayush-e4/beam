@@ -31,6 +31,8 @@ mod quic_tls;
 pub mod read_at;
 pub mod receiver;
 mod receiver_store;
+#[cfg(any(feature = "native", target_family = "wasm"))]
+mod runtime;
 pub mod safe_path;
 pub mod sender;
 pub mod sender_files;
@@ -45,7 +47,7 @@ pub mod staging;
 pub mod storage_file;
 #[cfg(feature = "native")]
 pub mod tcp;
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", target_family = "wasm"))]
 pub mod transfer;
 pub mod transfer_staging;
 pub mod verification;
@@ -83,7 +85,7 @@ pub use sender_opened::{
 pub use session::Session;
 pub use signaling::{SignalFrom, SignalMessage, SignalSeal};
 pub use storage_file::StorageFile;
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", target_family = "wasm"))]
 pub use transfer::{
     SendOutcome, confirm_received, read_offer, receive_transfer, receive_transfer_noting,
     reject_offer, send_transfer,

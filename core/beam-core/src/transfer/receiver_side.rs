@@ -11,7 +11,7 @@
 //! syncs to disk less often.
 
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -20,6 +20,7 @@ use crate::frame::{Frame, FrameType};
 use crate::manifest::{Manifest, TransferId};
 use crate::messages::{Accept, ChunkRange, Reason, Resume, encode_ack, encode_reason};
 use crate::offer::OfferAssembler;
+use crate::runtime::{Instant, timeout};
 use crate::{BeamError, Connection, Receiver, Result};
 
 /// Largest volume step between acknowledgements (8 MiB, well under the sender's window).
@@ -163,7 +164,7 @@ async fn say_done<S: AsyncRead + AsyncWrite + Unpin>(conn: &mut Connection<S>) {
     };
     if conn.send(&done).await.is_ok() {
         let drain = async { while let Ok(Some(_)) = conn.recv().await {} };
-        let _ = tokio::time::timeout(CLOSE_GRACE, drain).await;
+        let _ = timeout(CLOSE_GRACE, drain).await;
     }
     let _ = conn.close().await;
 }
@@ -212,10 +213,7 @@ async fn receive_chunks<S: AsyncRead + AsyncWrite + Unpin>(
             Some(conn.recv().await?)
         } else {
             let wait = ACK_INTERVAL.saturating_sub(last_ack.elapsed());
-            tokio::time::timeout(wait, conn.recv())
-                .await
-                .ok()
-                .transpose()?
+            timeout(wait, conn.recv()).await.transpose()?
         };
         let Some(frame) = next else {
             continue; // the ack interval passed with nothing new
