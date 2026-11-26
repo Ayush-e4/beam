@@ -40,7 +40,7 @@ internal object HistoryFormat {
         writeUTF(entry.transferId)
         writeUTF(entry.direction.name)
         writeUTF(entry.deviceId)
-        writeUTF(entry.deviceName)
+        writeOptional(entry.deviceName)
         writeUTF(entry.title)
         writeInt(entry.files.size)
         entry.files.forEach { file ->
@@ -50,8 +50,7 @@ internal object HistoryFormat {
         writeInt(entry.fileCount)
         writeLong(entry.totalBytes)
         writeUTF(entry.outcome.name)
-        writeBoolean(entry.detail != null)
-        entry.detail?.let { writeUTF(it) }
+        writeOptional(entry.detail)
         writeLong(entry.atMillis)
         writeInt(entry.savedPaths.size)
         entry.savedPaths.forEach { writeUTF(it) }
@@ -61,13 +60,13 @@ internal object HistoryFormat {
         val transferId = readUTF()
         val direction = named<Direction>(readUTF())
         val deviceId = readUTF()
-        val deviceName = readUTF()
+        val deviceName = readOptional()
         val title = readUTF()
         val files = List(readCount()) { HistoryFile(readUTF(), readLong()) }
         val fileCount = readInt()
         val totalBytes = readLong()
         val outcome = named<Outcome>(readUTF())
-        val detail = if (readBoolean()) readUTF() else null
+        val detail = readOptional()
         val atMillis = readLong()
         val savedPaths = List(readCount()) { readUTF() }
         return HistoryEntry(
@@ -75,6 +74,13 @@ internal object HistoryFormat {
             outcome, detail, atMillis, savedPaths
         )
     }
+
+    private fun DataOutputStream.writeOptional(text: String?) {
+        writeBoolean(text != null)
+        text?.let { writeUTF(it) }
+    }
+
+    private fun DataInputStream.readOptional(): String? = if (readBoolean()) readUTF() else null
 
     /** A list length, refused when negative or beyond what the store ever writes. */
     private fun DataInputStream.readCount(): Int = readInt().also { count ->

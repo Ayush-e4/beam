@@ -39,7 +39,8 @@ class TransferHistoryTest {
 
     @Test
     fun `entries survive a restart, newest first`() {
-        val failed = entry("2", 20, Outcome.FAILED, Direction.SENDING).copy(savedPaths = listOf())
+        val failed = entry("2", 20, Outcome.FAILED, Direction.SENDING)
+            .copy(deviceName = null, savedPaths = listOf())
         TransferHistory(file).apply {
             record(entry("1", 10))
             record(failed)

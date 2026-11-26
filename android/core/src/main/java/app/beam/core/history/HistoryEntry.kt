@@ -31,7 +31,8 @@ data class HistoryEntry(
     val direction: Direction,
     /** The other device. */
     val deviceId: String,
-    val deviceName: String,
+    /** Null when it isn't a trusted device, so its name isn't known. */
+    val deviceName: String?,
     /** What it is about, such as "photo.jpg" or "12 files". */
     val title: String,
     /** The first [TransferHistory.KEPT_FILES] files; [fileCount] says how many there were. */
