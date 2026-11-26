@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- The engine opens sockets to other devices. Granted at install, no prompt. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -11,6 +12,22 @@
 
     <!-- Android 17+: people allow local network access; the app asks before discovery. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+
+    <!-- The phone's own hotspot, for devices with no shared Wi-Fi. Android 13+ asks people to
+         allow nearby Wi-Fi devices (never used for location); older versions only let apps
+         open a hotspot with the precise location permission, so Beam asks for it there and
+         only for this (Android 12 asks for both, and people must pick precise). -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="33" />
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="32" />
 
     <!-- Transfers keep running with the screen off or the app closed, only while they run
          (a dataSync foreground service). Notifications show their progress; Android 13+
