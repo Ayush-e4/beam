@@ -1,0 +1,27 @@
+[package]
+name = "beam-web"
+version = "0.1.0"
+description = "WebAssembly bindings that run beam-core in the browser."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+# `cdylib` is the .wasm the web app loads; `lib` lets the workspace build and lint it natively.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beam-core = { path = "../beam-core", default-features = false }
+js-sys = "0.3.107"
+tokio = { version = "1.54.1", features = ["io-util"] }
+wasm-bindgen = "0.2.130"
+wasm-bindgen-futures = "0.4.80"
+web-sys = { version = "0.3.107", features = [
+  "ReadableStream",
+  "ReadableStreamDefaultReader",
+  "WritableStream",
+  "WritableStreamDefaultWriter",
+] }
