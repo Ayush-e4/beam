@@ -69,6 +69,26 @@ export async function openPage(browser, pkgDir) {
   return page;
 }
 
+// In the page: starts the engine worker and `globalThis.ask(message)` to talk to it.
+export async function startWorker(page) {
+  await page.evaluate(async () => {
+    const engine = new Worker('/worker.mjs', { type: 'module' });
+    const reply = () =>
+      new Promise((resolve, reject) => {
+        engine.onmessage = ({ data }) => resolve(data);
+        engine.onerror = (event) => reject(new Error(`worker: ${event.message}`));
+      });
+    await reply(); // { ready: true }
+    globalThis.ask = (message) => {
+      const answer = reply();
+      engine.postMessage(message);
+      return answer;
+    };
+  });
+}
+
+export const ask = (page, message) => page.evaluate((m) => globalThis.ask(m), message);
+
 export function check(ok, message) {
   if (!ok) throw new Error(message);
   console.log(`ok - ${message}`);

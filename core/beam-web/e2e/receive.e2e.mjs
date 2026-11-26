@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
-import { check, listening, openPage, startPeer } from './harness.mjs';
+import { ask, check, listening, openPage, startPeer, startWorker } from './harness.mjs';
 
 const [pkgDir, peerBin] = process.argv.slice(2);
 const MIB = 1024 * 1024;
@@ -36,26 +36,6 @@ async function makeFiles() {
   const total = Object.values(files).reduce((sum, bytes) => sum + bytes.length, 0);
   return { dir, send: [path.join(dir, 'trip'), path.join(dir, 'hello.txt')], expected, total };
 }
-
-// In the page: starts the engine worker and `globalThis.ask(message)` to talk to it.
-async function startWorker(page) {
-  await page.evaluate(async () => {
-    const engine = new Worker('/worker.mjs', { type: 'module' });
-    const reply = () =>
-      new Promise((resolve, reject) => {
-        engine.onmessage = ({ data }) => resolve(data);
-        engine.onerror = (event) => reject(new Error(`worker: ${event.message}`));
-      });
-    await reply(); // { ready: true }
-    globalThis.ask = (message) => {
-      const answer = reply();
-      engine.postMessage(message);
-      return answer;
-    };
-  });
-}
-
-const ask = (page, message) => page.evaluate((m) => globalThis.ask(m), message);
 
 async function receivesFiles(page, files) {
   const { invite } = await ask(page, { op: 'invite' });

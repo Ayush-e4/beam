@@ -46,6 +46,11 @@ with its name and SHA-256, progress must reach the total, and the phone must hea
 A declined offer must reach the phone as `UserDeclined`. It prints the speed; with a release
 peer, loopback reaches about 70–100 MiB/s on one browser core.
 
+Then `e2e/send.e2e.mjs` does the reverse. Files are picked in the page through a real
+`<input type=file>` and passed to the worker. The peer must save them intact, progress must
+reach the total, and the browser must hear `delivered`. A declined offer must come back as
+`declined`. A file edited on disk after it was picked must fail as a storage error naming it.
+
 The same script then runs beam-web's browser-only Rust tests (`core/beam-web/tests`) in that
 Chromium: `wasm-bindgen-test-runner` serves them and `e2e/wasm-tests.e2e.mjs` opens the page
 and reports the result. `tests/opfs_staging.rs` runs in a dedicated worker, where OPFS sync

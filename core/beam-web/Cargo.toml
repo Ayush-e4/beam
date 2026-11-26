@@ -22,6 +22,7 @@ wasm-bindgen-futures = "0.4.80"
 web-sys = { version = "0.3.107", features = [
   "Blob",
   "File",
+  "FileReaderSync",
   "FileSystemDirectoryHandle",
   "FileSystemFileHandle",
   "FileSystemGetDirectoryOptions",

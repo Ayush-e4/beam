@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the WebAssembly engine and the native test peer, then pairs them in headless Chromium
-# (core/beam-web/e2e/handshake.e2e.mjs), and the peer sends files into the engine's worker
-# (receive.e2e.mjs). Then runs beam-web's browser-only Rust tests
+# (core/beam-web/e2e/handshake.e2e.mjs), the peer sends files into the engine's worker
+# (receive.e2e.mjs) and receives files picked in the page (send.e2e.mjs). Then runs beam-web's browser-only Rust tests
 # (core/beam-web/tests, such as OPFS staging in a dedicated worker) in the same Chromium.
 #
 # Needs: the wasm32-unknown-unknown target (rust-toolchain.toml), wasm-bindgen-cli at the same
@@ -32,6 +32,8 @@ wasm-bindgen --target web --out-dir "$target/beam-web-pkg" \
 node "$root/core/beam-web/e2e/handshake.e2e.mjs" \
   "$target/beam-web-pkg" "$target/debug/examples/webtransport_peer"
 node "$root/core/beam-web/e2e/receive.e2e.mjs" \
+  "$target/beam-web-pkg" "$target/debug/examples/webtransport_peer"
+node "$root/core/beam-web/e2e/send.e2e.mjs" \
   "$target/beam-web-pkg" "$target/debug/examples/webtransport_peer"
 
 # Integration tests only: the unit tests are host tests that `cargo test` already runs.

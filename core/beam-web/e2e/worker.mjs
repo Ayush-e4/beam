@@ -1,5 +1,6 @@
 // The web app's engine worker, cut down to what the end-to-end tests drive: it pairs with the
-// peer over WebTransport and receives (or declines) what the peer offers. The page sends
+// peer over WebTransport, then receives (or declines) what the peer offers, or sends it the
+// picked files the page passes on. The page sends
 // `{ op, ...args }` and gets one reply per message; `{ ready: true }` comes first.
 import init, * as beam from '/beam_web.js';
 
@@ -54,6 +55,21 @@ const ops = {
       }
       await received.remove();
       return { code, offered, files, ms, progress };
+    } finally {
+      transport.close();
+    }
+  },
+
+  async send({ port, hash, files }) {
+    const { transport, connection } = await connect(port, hash);
+    try {
+      const progress = [];
+      const started = performance.now();
+      const outcome = await connection.sendFiles(files, (done, total) =>
+        progress.push({ done, total }),
+      );
+      const ms = performance.now() - started;
+      return { code: connection.verificationCode, outcome, ms, progress };
     } finally {
       transport.close();
     }
