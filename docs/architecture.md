@@ -41,10 +41,13 @@
 
 Shared engine, compiled for Android, the browser (WebAssembly) and later desktop.
 
-- **Features:** the default `native` feature adds sockets, QUIC, the phone's WebTransport
-  server and the tokio-driven transfer loops. Without it the crate builds for
-  `wasm32-unknown-unknown`, keeping the protocol, crypto, framing and handshake, so the web
-  app runs the same engine as the phone. In browsers, randomness comes from
+- **Features:** the default `native` feature adds sockets, QUIC and the phone's WebTransport
+  server, and runs the transfer loops on tokio. Without it the crate builds for
+  `wasm32-unknown-unknown`, keeping the protocol, crypto, framing, handshake and transfer
+  loops, so the web app runs the same engine as the phone. `runtime.rs` holds the only
+  difference: natively file work goes to tokio's blocking pool. In the browser's worker it
+  runs inline, on one core, because the worker is never the page's thread; timers there are
+  `setTimeout` and the clock is `performance.now()`. In browsers, randomness comes from
   `crypto.getRandomValues` (ring's `wasm32_unknown_unknown_js`, getrandom's `wasm_js` with
   the cfg in `core/.cargo/config.toml`), and the C parts (ring, zstd) build with clang.
 

@@ -182,6 +182,7 @@ dependencies = [
  "h3-quinn",
  "h3-webtransport",
  "http",
+ "js-sys",
  "proptest",
  "quinn",
  "rcgen",
@@ -192,6 +193,8 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "zeroize",
  "zstd",
 ]

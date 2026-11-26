@@ -11,8 +11,9 @@ workspace = true
 
 [features]
 default = ["native"]
-# Sockets, QUIC, the WebTransport server and the tokio-driven transfer loops. Without it the
-# crate builds for browsers (wasm32-unknown-unknown): protocol, crypto, framing, handshake.
+# Sockets, QUIC, the WebTransport server, and tokio for the transfer loops. Without it the
+# crate builds for browsers (wasm32-unknown-unknown): protocol, crypto, framing, handshake, and
+# the transfer loops on the browser's timers (src/runtime.rs).
 native = [
   "dep:h3",
   "dep:h3-quinn",
@@ -51,6 +52,10 @@ zstd = { version = "0.14.4", default-features = false }
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.3.4", features = ["wasm_js"] }
 ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }
+# The transfer loops' timers and clock in a browser worker (see src/runtime.rs).
+js-sys = "0.3.107"
+wasm-bindgen = "0.2.130"
+wasm-bindgen-futures = "0.4.80"
 
 [dev-dependencies]
 proptest = "1.12.0"
