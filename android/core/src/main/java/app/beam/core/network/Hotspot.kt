@@ -23,7 +23,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * can reach it with no shared Wi-Fi. It shares no internet and uses no mobile data; Android
  * picks its name and a random password each time.
  */
-class Hotspot(context: Context) {
+class Hotspot(context: Context) : HotspotOpener {
     private val context = context.applicationContext
     private val wifi = context.getSystemService(WifiManager::class.java)
 
@@ -37,6 +37,8 @@ class Hotspot(context: Context) {
         val granted = context.checkSelfPermission(needed) == PackageManager.PERMISSION_GRANTED
         return if (granted) null else needed
     }
+
+    override suspend fun open(): OpenHotspot = start()
 
     /**
      * Opens the hotspot. Close the session to turn it off.

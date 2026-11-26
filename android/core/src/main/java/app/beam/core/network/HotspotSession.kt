@@ -31,10 +31,32 @@ enum class HotspotProblem {
 /** Opening the hotspot failed. */
 class HotspotException(val problem: HotspotProblem, message: String) : Exception(message)
 
-/**
- * The phone's open hotspot: what another device needs to join it, and the phone's address on
- * it. Closing it turns the hotspot off (unless another app is using it too).
- */
+/** What another device needs to join the hotspot, and the phone's address on it. */
+data class HotspotDetails(
+    val ssid: String,
+    val passphrase: String?,
+    val security: WifiSecurity,
+    val address: Inet4Address?
+) {
+    /** The Wi-Fi QR code text that lets a camera join the hotspot. */
+    val wifiQr: String get() = wifiQr(ssid, passphrase, security)
+}
+
+/** An open hotspot. Closing it turns the hotspot off (unless another app is using it too). */
+interface OpenHotspot : Closeable {
+    val details: HotspotDetails
+
+    /** False once the hotspot is off: closed here, or stopped by Android. */
+    val isOn: StateFlow<Boolean>
+}
+
+/** Opens the phone's hotspot. */
+fun interface HotspotOpener {
+    /** @throws HotspotException if it can't be opened. */
+    suspend fun open(): OpenHotspot
+}
+
+/** The phone's open hotspot, as Android's local-only hotspot gives it. */
 class HotspotSession internal constructor(
     private val reservation: WifiManager.LocalOnlyHotspotReservation,
     /** The network's name. */
@@ -46,12 +68,13 @@ class HotspotSession internal constructor(
     /** The phone's address on it, or null if Android didn't show it in time. */
     val address: Inet4Address?,
     private val on: MutableStateFlow<Boolean>
-) : Closeable {
-    /** False once the hotspot is off: closed here, or stopped by Android. */
-    val isOn: StateFlow<Boolean> = on.asStateFlow()
+) : OpenHotspot {
+    override val isOn: StateFlow<Boolean> = on.asStateFlow()
+
+    override val details get() = HotspotDetails(ssid, passphrase, security, address)
 
     /** The Wi-Fi QR code text that lets a camera join the hotspot. */
-    val wifiQr: String get() = wifiQr(ssid, passphrase, security)
+    val wifiQr: String get() = details.wifiQr
 
     override fun close() {
         on.value = false

@@ -191,6 +191,7 @@ dependencies {
     implementation(libs.androidx.annotation)
     testImplementation(libs.jna)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     // Run on a connected phone: ./gradlew :core:connectedDebugAndroidTest
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.junit)
