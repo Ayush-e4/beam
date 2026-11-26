@@ -16,6 +16,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -60,10 +61,12 @@ class TransferServiceTest {
             ongoing.notification.flags and Notification.FLAG_FOREGROUND_SERVICE != 0
         )
         assertEquals("Receiving album.zip", ongoing.title())
+        assertTrue("the phone stays awake for it", holdsWakeLock())
 
         finish.complete(Unit)
         assertEquals("Received album.zip", waitFor(TransferNotifications.SUMMARY_ID).title())
         waitForGone(TransferNotifications.ONGOING_ID)
+        assertFalse("and may sleep after", holdsWakeLock())
     }
 
     @Test
@@ -96,6 +99,15 @@ class TransferServiceTest {
 
     private suspend fun waitForGone(id: Int) = withTimeout(TIMEOUT_MS) {
         while (manager.activeNotifications.any { it.id == id }) delay(POLL_MS)
+    }
+
+    /** Whether Android lists the transfers' wake lock as held. */
+    private fun holdsWakeLock(): Boolean {
+        val dump = instrumentation.uiAutomation.executeShellCommand("dumpsys power")
+        val text = android.os.ParcelFileDescriptor.AutoCloseInputStream(dump)
+            .bufferedReader()
+            .use { it.readText() }
+        return text.lineSequence().any { "PARTIAL_WAKE_LOCK" in it && "'${StayAwake.TAG}'" in it }
     }
 
     private fun StatusBarNotification.title(): String? =
