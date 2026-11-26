@@ -28,6 +28,7 @@ pub mod progress;
 pub mod quic;
 #[cfg(feature = "native")]
 mod quic_tls;
+pub mod read_at;
 pub mod receiver;
 mod receiver_store;
 pub mod safe_path;
@@ -66,11 +67,15 @@ pub use journal::Journal;
 pub use keys::{DeviceId, PublicKey, StaticKeypair};
 pub use manifest::{Manifest, ManifestItem, TransferId};
 pub use progress::Progress;
+pub use read_at::ReadAt;
 pub use receiver::Receiver;
 pub use safe_path::SafePath;
 pub use sender::Sender;
 pub use sender_files::{PreparedTransfer, SourceFile, prepare_transfer, prepare_transfer_with_id};
-pub use sender_opened::{OpenedFile, prepare_opened, prepare_opened_with_id};
+pub use sender_opened::{
+    OpenedFile, ReadableFile, prepare_opened, prepare_opened_with_id, prepare_readable,
+    prepare_readable_with_id,
+};
 pub use session::Session;
 pub use signaling::{SignalFrom, SignalMessage, SignalSeal};
 #[cfg(feature = "native")]

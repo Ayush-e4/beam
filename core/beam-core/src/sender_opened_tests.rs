@@ -26,12 +26,13 @@ fn opened(dir: &TempDir, name: &str, bytes: &[u8]) -> OpenedFile {
 }
 
 /// Sends everything to a receiver in `dest` and finishes it.
-fn send_all(prepared: PreparedTransfer, dest: &std::path::Path) {
+pub(super) fn send_all(prepared: PreparedTransfer, dest: &std::path::Path) {
+    let transfer_id = prepared.manifest().transfer_id();
     let mut receiver = Receiver::open(prepared.manifest().clone(), dest, &[]).unwrap();
     let mut sender = Sender::new(prepared);
     sender
         .accept(&Accept {
-            transfer_id: ID,
+            transfer_id,
             items: Vec::new(),
         })
         .unwrap();

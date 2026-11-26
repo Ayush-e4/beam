@@ -15,13 +15,14 @@
 //! Everything here does blocking file I/O; async callers should run it on a blocking thread.
 
 use std::collections::HashMap;
-use std::fs::{self, File, Metadata};
+use std::fs::{self, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::manifest::{MAX_ITEMS, Manifest, ManifestItem, TransferId};
+use crate::read_at::ReadAt;
 use crate::safe_path::{MAX_DEPTH, SafePath};
 use crate::sender_names::NameAllocator;
 use crate::{BeamError, Result, mime};
@@ -106,7 +107,7 @@ impl Builder {
         if meta.is_dir() {
             self.add_folder(path, relative)
         } else if meta.is_file() {
-            self.add_file(path, meta, relative, None)
+            self.add_file(path, meta.len(), meta.modified().ok(), relative, None)
         } else {
             Ok(()) // Symbolic links inside folders, sockets, pipes and devices.
         }
@@ -140,13 +141,15 @@ impl Builder {
         Ok(())
     }
 
-    /// Adds one file whose receiver-side path is `relative`; `opened` if it is already open.
+    /// Adds one file of `size` bytes whose receiver-side path is `relative`; `opened` if it is
+    /// already open.
     pub(crate) fn add_file(
         &mut self,
         path: &Path,
-        meta: &Metadata,
+        size: u64,
+        modified: Option<SystemTime>,
         relative: &[String],
-        opened: Option<Arc<File>>,
+        opened: Option<Arc<dyn ReadAt>>,
     ) -> Result<()> {
         if self.items.len() >= MAX_ITEMS {
             return Err(selection_error(&format!(
@@ -158,8 +161,6 @@ impl Builder {
             .map_err(|_| selection_error(&format!("the path is too long: {joined}")))?;
         let item_id = u32::try_from(self.items.len())
             .map_err(|_| selection_error("too many files are selected"))?;
-        let size = meta.len();
-        let modified = meta.modified().ok();
 
         self.total = self
             .total

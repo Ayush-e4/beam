@@ -5,16 +5,16 @@
 //! the root can be computed. When the receiver already has the last chunk it also has the root,
 //! so only the missing chunks are read.
 
-use std::fs::File;
 use std::io;
+use std::sync::Arc;
 
 use crate::chunk_set::ChunkSet;
 use crate::compress::{SAMPLE_LEN, encode_chunk, worth_compressing};
 use crate::integrity::{ChunkLayout, RootHasher, chunk_hash};
 use crate::manifest::ManifestItem;
 use crate::messages::ChunkHeader;
+use crate::read_at::ReadAt;
 use crate::sender_files::{SourceFile, storage_error};
-use crate::sender_source::read_exact_at;
 use crate::{BeamError, Result};
 
 /// One chunk ready to send.
@@ -35,7 +35,7 @@ pub struct StreamChunk {
 pub struct FileStream {
     item_id: u32,
     source: SourceFile,
-    file: File,
+    file: Arc<dyn ReadAt>,
     layout: ChunkLayout,
     compress: bool,
     have: Option<ChunkSet>,
@@ -140,7 +140,7 @@ impl FileStream {
     /// Reads `len` bytes at `offset` into the buffer. A short read means the file shrank.
     fn read_at(&mut self, offset: u64, len: usize) -> Result<()> {
         self.buffer.resize(len, 0);
-        let read = read_exact_at(&mut self.file, &mut self.buffer, offset);
+        let read = self.file.read_exact_at(&mut self.buffer, offset);
         match read {
             Ok(()) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => Err(self.source.changed()),
