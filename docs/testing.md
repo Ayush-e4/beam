@@ -25,6 +25,27 @@ to `master` unless all checks pass.
     job: `cargo test --release --test m1_exit_tcp --test m1_exit_quic -- --ignored`.
 - `clippy` with warnings as errors; `rustfmt` check.
 
+### Mac command-line device (`core/beam-cli`)
+
+A second Beam device for when there's no second phone: `beam` pairs, sends and receives with
+the phone over the real Wi-Fi. Build it with `cargo build -p beam-cli`; its state (identity and
+trusted devices) lives in `$BEAM_HOME`, or `~/.beam-cli`.
+
+- `beam pair`: shows a code for the phone to enter, then prints `PAIRED name=… verify=…`.
+- `beam receive [--port 47123] [--into inbox] [--accept-all]`: receives until stopped.
+- `beam send WHO HOST PORT FILE...`: sends to a trusted device.
+- `beam id`, `beam devices`, `beam pair-with CODE`.
+
+Output is one line per event (`LISTENING`, `RECEIVED`, `SENT`, `DECLINED`, …) so scripts can
+read it. `tests/two_devices.rs` pairs two CLI devices over loopback, sends a file and checks
+that a device that never paired is declined.
+
+`tools/lan-test.sh` (`MIB=64` by default) runs the phone on USB against the CLI over the real
+Wi-Fi: the phone pairs with `beam pair`'s code (both sides must show the same verification
+code), sends the Mac random data, then receives some from it, and the script prints each
+direction's speed. The phone side is `MacPeerOnDeviceTest`, skipped in ordinary test runs. To
+tell Beam's speed from the network's, compare with raw TCP (`nc`) between the same two devices.
+
 ### Android app
 
 - **Unit tests** for ViewModels, repositories and use cases.
