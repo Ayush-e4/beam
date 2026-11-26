@@ -157,6 +157,33 @@ class SendingOnDeviceTest {
     }
 
     @Test
+    fun aSendAVpnBlocksSaysSoAndWaitsToResume() = runBlocking {
+        val closedPort = java.net.ServerSocket(0).use { it.localPort }
+        val unreachable =
+            NearbyDevice(device, listOf(InetAddress.getByName("127.0.0.1")), closedPort, true)
+        val behindVpn = object : NetworkFinder {
+            override fun networkFor(address: InetAddress): Long? = null
+            override val behindVpn = true
+        }
+        val sending = Sending(
+            context,
+            laptopEngine,
+            runner,
+            PendingSends(pendingFile),
+            sentHistory,
+            behindVpn
+        )
+        val id = sending.send(unreachable, SourceKind.PATHS, listOf(source(ByteArray(16)).path))
+        val state = ended(id)
+        assertTrue("$state", state is TransferState.Failed)
+        assertTrue(
+            (state as TransferState.Failed).reason,
+            state.reason.startsWith("A VPN on this phone is blocking Phone")
+        )
+        assertEquals("kept, to resume", 1, PendingSends(pendingFile).all().size)
+    }
+
+    @Test
     fun oldSendsAndSendsToUntrustedDevicesAreForgotten() {
         val pending = PendingSends(pendingFile)
         val now = 100L * 24 * 60 * 60 * 1000

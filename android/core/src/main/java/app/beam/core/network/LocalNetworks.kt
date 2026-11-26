@@ -13,6 +13,13 @@ fun interface NetworkFinder {
     /** The handle of the local network [address] is on, or null to use the default route. */
     fun networkFor(address: InetAddress): Long?
 
+    /**
+     * Whether this app's traffic goes through a VPN now. One that doesn't let apps bypass it
+     * and doesn't leave local traffic alone can't be got past: nearby devices are
+     * unreachable until the person allows local access in it or pauses it.
+     */
+    val behindVpn: Boolean get() = false
+
     companion object {
         /** Always the default route (tests, and devices reached by loopback). */
         val DEFAULT = NetworkFinder { null }
@@ -49,6 +56,10 @@ class LocalNetworks(context: Context) : NetworkFinder {
         callback = null
         links.clear()
     }
+
+    override val behindVpn: Boolean
+        get() = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+            ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
 
     @Synchronized
     override fun networkFor(address: InetAddress): Long? {
