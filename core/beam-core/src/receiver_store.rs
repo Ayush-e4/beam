@@ -5,6 +5,9 @@
 //! lives inside the destination so publishing a finished file is a same-file-system rename,
 //! which is atomic: a file appears under its real name only once it is complete and verified.
 
+// Browsers' std has no files, so `File` is zero-sized there.
+#![cfg_attr(target_family = "wasm", allow(clippy::zero_sized_map_values))]
+
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
