@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
-import { check, listening, openPage, startPeer, startWorker } from './harness.mjs';
+import { check, offered, openPage, paired, startPeer, startWorker } from './harness.mjs';
 
 const [pkgDir, peerBin] = process.argv.slice(2);
 const MIB = 1024 * 1024;
@@ -33,7 +33,7 @@ async function makeFiles(dir) {
 }
 
 // Picks `paths` in the page, as a person would, and hands the Files to the worker to send.
-async function pickAndSend(page, paths, port, hash) {
+async function pickAndSend(page, paths, sealed) {
   await page.evaluate(() => {
     if (!document.querySelector('input')) {
       const input = document.createElement('input');
@@ -44,9 +44,9 @@ async function pickAndSend(page, paths, port, hash) {
   });
   await page.locator('input').setInputFiles(paths);
   return page.evaluate(
-    ({ port, hash }) =>
-      globalThis.ask({ op: 'send', port, hash, files: [...document.querySelector('input').files] }),
-    { port, hash },
+    (sealed) =>
+      globalThis.ask({ op: 'send', sealed, files: [...document.querySelector('input').files] }),
+    sealed,
   );
 }
 
@@ -56,12 +56,13 @@ async function sendsFiles(page, dir, picked) {
   const { invite } = await page.evaluate(() => globalThis.ask({ op: 'invite' }));
   const peer = startPeer(peerBin, [invite, 'receive', inbox]);
   try {
-    const { port, hash } = listening(await peer.line('LISTENING '));
-    const result = await pickAndSend(page, picked.paths, port, hash);
+    const result = await pickAndSend(page, picked.paths, await offered(peer));
     check(!result.failed, result.failed ? `send: ${result.failed}\n${peer.stderr()}` : 'sent');
-    check(result.code === (await peer.line('PAIRED code=')), 'both sides show the same code');
-    const offered = await peer.line('OFFERED ');
-    check(offered === `files=3 bytes=${picked.total}`, `the phone is offered ${offered}`);
+    const { code, browserName } = await paired(peer);
+    check(result.code === code, 'both sides show the same code');
+    check(result.phone === 'Test phone' && browserName === 'Test browser', 'each learns the other\'s name');
+    const files = await peer.line('OFFERED ');
+    check(files === `files=3 bytes=${picked.total}`, `the phone is offered ${files}`);
     await peer.line('RECEIVED files=3', TRANSFER_MS);
     check(result.outcome === 'delivered', 'the browser hears the files were delivered');
     for (const [name, bytes] of Object.entries(picked.files)) {
@@ -86,8 +87,7 @@ async function declined(page, dir, picked) {
   const { invite } = await page.evaluate(() => globalThis.ask({ op: 'invite' }));
   const peer = startPeer(peerBin, [invite, 'receive', path.join(dir, 'unused'), '--decline']);
   try {
-    const { port, hash } = listening(await peer.line('LISTENING '));
-    const result = await pickAndSend(page, picked.paths, port, hash);
+    const result = await pickAndSend(page, picked.paths, await offered(peer));
     check(result.outcome === 'declined', `the browser hears it was declined (${result.outcome})`);
   } finally {
     peer.kill();
@@ -100,15 +100,15 @@ async function changedAfterPicking(page, dir, picked) {
   const { invite } = await page.evaluate(() => globalThis.ask({ op: 'invite' }));
   const peer = startPeer(peerBin, [invite, 'receive', inbox]);
   try {
-    const { port, hash } = listening(await peer.line('LISTENING '));
+    const sealed = await offered(peer);
     await page.locator('input').setInputFiles(picked.paths);
     const video = picked.paths[0];
     await writeFile(video, randomBytes(24 * MIB)); // edited after it was picked
     await utimes(video, new Date(), new Date(Date.now() + 60_000));
     const result = await page.evaluate(
-      ({ port, hash }) =>
-        globalThis.ask({ op: 'send', port, hash, files: [...document.querySelector('input').files] }),
-      { port, hash },
+      (sealed) =>
+        globalThis.ask({ op: 'send', sealed, files: [...document.querySelector('input').files] }),
+      sealed,
     );
     check(
       result.failed?.startsWith('BeamError/storage'),

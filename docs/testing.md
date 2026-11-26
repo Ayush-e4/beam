@@ -34,9 +34,12 @@ to `master` unless all checks pass.
 `tools/web-engine-test.sh` (CI job `web-engine`) builds the WebAssembly engine and a native peer
 that plays the phone (`beam-core/examples/webtransport_peer.rs`), then runs
 `core/beam-web/e2e/handshake.e2e.mjs` in headless Chromium: the browser shows an invite, the
-peer "scans" it and serves WebTransport, both pair and must show the same verification code,
-1 MiB of random frames is echoed through the encrypted session, and a browser holding the
-wrong invite must be refused (`crypto`) without the peer ever reporting a pairing. Locally,
+peer "scans" it, serves WebTransport and prints the sealed offer it would post in the signaling
+room. The browser opens the offer and connects where it says; both pair, must show the same
+verification code and learn each other's name, and 1 MiB of random frames is echoed through
+the encrypted session. A browser holding another invite can't open the offer (`crypto`), nor
+pair even knowing the address, and the peer never reports a pairing. The receive and send
+tests below pair the same way. Locally,
 `CHROMIUM_PATH` can point at any Chromium; `wasm-bindgen-cli` must match `core/Cargo.lock`.
 
 It then runs `e2e/receive.e2e.mjs`: the peer sends a folder (a 24 MiB incompressible file, a
@@ -65,6 +68,10 @@ check that:
 encrypted connection on an in-memory pipe, into OPFS. One test sends with one piece in flight,
 so only the receiver's ack timer (the browser's `setTimeout`) can keep it moving: it hangs if
 the timers break.
+
+`tests/pairing.rs` opens offers that beam-core sealed: the addresses (IPv4 and bracketed IPv6)
+and certificate hash come out as sealed, and another pairing's offer, the browser's own message
+bounced back, and an offer without an address are all refused.
 
 ### Mac command-line device (`core/beam-cli`)
 

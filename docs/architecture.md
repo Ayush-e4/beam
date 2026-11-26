@@ -75,6 +75,12 @@ beam-core without `native`, wrapped with `wasm-bindgen` for the web app: `Identi
 browser's key pair, saved in IndexedDB by the app), `Invite` (the QR text and signaling room),
 `BeamHandshake` (pairing or known device; the browser always initiates) and `BeamConnection`,
 which runs the Noise handshake and encrypted session over a WebTransport bidirectional stream.
+
+Pairing (`pairing.rs`): the phone that scanned the invite posts a sealed offer in the signaling
+room. `invite.openOffer(sealed)` opens it into a `PhoneOffer` (`addresses` for
+`https://${address}/beam`, and the `certificateHash` to pin). After the pairing handshake,
+`connection.introduce(name, identity.discoveryKey)` swaps `HELLO`s and returns a
+`PairedPhone` (name, public key, device ID) for the app to remember.
 `js_stream.rs` adapts the stream's `readable`/`writable` into tokio's byte-stream traits, so the
 engine code is unchanged. Errors are `Error`s named `BeamError` with a `category`.
 

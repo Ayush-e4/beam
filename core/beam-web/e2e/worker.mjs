@@ -8,16 +8,18 @@ await init();
 let identity;
 let invite;
 
-async function connect(port, hash) {
-  const value = new Uint8Array(hash.match(/../g).map((byte) => parseInt(byte, 16)));
-  const transport = new WebTransport(`https://127.0.0.1:${port}/beam`, {
-    serverCertificateHashes: [{ algorithm: 'sha-256', value }],
+// Opens the phone's sealed offer (hex), connects where it says, pairs and swaps names.
+async function connect(sealed) {
+  const offer = invite.openOffer(new Uint8Array(sealed.match(/../g).map((b) => parseInt(b, 16))));
+  const transport = new WebTransport(`https://${offer.addresses[0]}/beam`, {
+    serverCertificateHashes: [{ algorithm: 'sha-256', value: offer.certificateHash }],
   });
   await transport.ready;
   const stream = await transport.createBidirectionalStream();
   const handshake = beam.BeamHandshake.pairing(identity, invite);
   const connection = await beam.BeamConnection.establish(handshake, stream.readable, stream.writable);
-  return { transport, connection };
+  const phone = await connection.introduce('Test browser', identity.discoveryKey);
+  return { transport, connection, phone: phone.name };
 }
 
 async function sha256(file) {
@@ -32,15 +34,15 @@ const ops = {
     return { invite: invite.text() };
   },
 
-  async receive({ port, hash, decline }) {
-    const { transport, connection } = await connect(port, hash);
+  async receive({ sealed, decline }) {
+    const { transport, connection, phone } = await connect(sealed);
     try {
       const offer = await connection.readOffer();
       const offered = offer.files.map(({ path, size }) => ({ path, size }));
       const code = connection.verificationCode;
       if (decline) {
         await connection.decline(offer);
-        return { code, offered, declined: true };
+        return { code, phone, offered, declined: true };
       }
       const progress = [];
       const started = performance.now();
@@ -54,14 +56,14 @@ const ops = {
         files.push({ path, name: file.name, size: file.size, sha256: await sha256(file) });
       }
       await received.remove();
-      return { code, offered, files, ms, progress };
+      return { code, phone, offered, files, ms, progress };
     } finally {
       transport.close();
     }
   },
 
-  async send({ port, hash, files }) {
-    const { transport, connection } = await connect(port, hash);
+  async send({ sealed, files }) {
+    const { transport, connection, phone } = await connect(sealed);
     try {
       const progress = [];
       const started = performance.now();
@@ -69,7 +71,7 @@ const ops = {
         progress.push({ done, total }),
       );
       const ms = performance.now() - started;
-      return { code: connection.verificationCode, outcome, ms, progress };
+      return { code: connection.verificationCode, phone, outcome, ms, progress };
     } finally {
       transport.close();
     }
