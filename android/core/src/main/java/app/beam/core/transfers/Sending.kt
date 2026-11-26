@@ -15,6 +15,7 @@ import app.beam.core.discovery.NearbyDevice
 import app.beam.core.files.Inbox
 import app.beam.core.files.prepareSendUris
 import app.beam.core.history.TransferHistory
+import app.beam.core.network.NetworkFinder
 import app.beam.core.trust.TrustedDevice
 import java.io.IOException
 import java.net.Inet4Address
@@ -29,7 +30,8 @@ import kotlinx.coroutines.flow.Flow
  * more; the rest (the device went away, the app was closed, Android stopped it) resume on
  * their own when the device is nearby again, so the receiver continues where it stopped.
  * Each send goes into [history]: interrupted until it continues, and not delivered if it
- * never can.
+ * never can. Connections go over the local network [networks] finds for each address, so a
+ * VPN on the phone doesn't capture them.
  */
 class Sending(
     private val context: Context,
@@ -37,6 +39,7 @@ class Sending(
     private val runner: TransferRunner,
     private val pending: PendingSends,
     history: TransferHistory,
+    private val networks: NetworkFinder,
     private val clock: () -> Long = System::currentTimeMillis
 ) {
     private val log = TransferLog(history, clock)
@@ -153,7 +156,8 @@ class Sending(
                     nearby.port.toUShort(),
                     device.publicKey,
                     device.cipher,
-                    progress
+                    progress,
+                    networks.networkFor(address)?.toULong()
                 )
             } catch (e: BeamException.Network) {
                 Log.i(TAG, "${device.name} not reachable at $address: ${e.reason()}")

@@ -13,6 +13,7 @@ import app.beam.core.history.HistoryEntry
 import app.beam.core.history.HistoryFile
 import app.beam.core.history.Outcome
 import app.beam.core.history.TransferHistory
+import app.beam.core.network.NetworkFinder
 import app.beam.core.trust.TrustedDevice
 import java.io.File
 import java.net.InetAddress
@@ -172,14 +173,20 @@ class SendingOnDeviceTest {
         sentHistory.record(interrupted)
 
         // The phone isn't nearby, so nothing starts; only the two are forgotten.
-        Sending(context, laptopEngine, runner, pending, sentHistory) { now }
+        Sending(context, laptopEngine, runner, pending, sentHistory, NetworkFinder.DEFAULT) { now }
             .resume(emptyList(), listOf(device))
         assertEquals(listOf("kept"), PendingSends(pendingFile).all().map { it.transferId })
         assertEquals(Outcome.NOT_DELIVERED, sentHistory.all().single().outcome)
     }
 
-    private fun sending() =
-        Sending(context, laptopEngine, runner, PendingSends(pendingFile), sentHistory)
+    private fun sending() = Sending(
+        context,
+        laptopEngine,
+        runner,
+        PendingSends(pendingFile),
+        sentHistory,
+        NetworkFinder.DEFAULT
+    )
 
     /** The receiver records after the sender hears "done", so wait for it. */
     private suspend fun recorded(history: TransferHistory): HistoryEntry {
