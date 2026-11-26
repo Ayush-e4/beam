@@ -5,6 +5,7 @@
 //! returns a typed [`BeamError`], which Kotlin sees as `BeamException` with one subclass per
 //! category.
 
+mod browser_pairing;
 mod discovery;
 mod engine;
 mod error;
@@ -23,6 +24,7 @@ mod shared;
 mod trust;
 mod types;
 
+pub use browser_pairing::BrowserPairing;
 pub use discovery::recognise_beacon;
 pub use engine::Engine;
 pub use error::{BeamError, NetworkFailure};

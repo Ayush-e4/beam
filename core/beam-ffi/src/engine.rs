@@ -8,9 +8,11 @@ use std::time::{Duration, SystemTime};
 
 use beam_core::staging::remove_stale;
 use beam_core::tcp::TcpAcceptor;
-use beam_core::{Beacon, DiscoveryKey};
+use beam_core::webtransport::WebTransportServer;
+use beam_core::{Beacon, DiscoveryKey, PairingInvite};
 use tokio::runtime::{Builder, Runtime};
 
+use crate::browser_pairing::BrowserPairing;
 use crate::finished::Finished;
 use crate::incoming::Listener;
 use crate::pairing::{Local, PairedDevice, PairingHost, pair_with};
@@ -178,6 +180,36 @@ impl Engine {
             discovery_key: self.discovery_key(),
         };
         pair_with(&self.handle()?, local, code, name, network).await
+    }
+}
+
+#[uniffi::export]
+impl Engine {
+    /// Pairs with the browser showing the scanned `code`: serves WebTransport on a free port
+    /// on every interface. Post [`BrowserPairing::offer`] in [`BrowserPairing::room`], then
+    /// [`BrowserPairing::wait_for_browser`].
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Protocol`] if `code` isn't a Beam pairing code, [`BeamError::Network`] if
+    /// no port can be opened, [`BeamError::Crypto`] if the server's certificate can't be made.
+    pub async fn pair_with_browser(&self, code: String) -> Result<Arc<BrowserPairing>, BeamError> {
+        let invite = PairingInvite::decode(&code)?;
+        let handle = self.handle()?;
+        let identity = self.identity.clone();
+        let discovery_key = self.discovery_key();
+        let task = handle.clone();
+        run(&handle, async move {
+            let server = WebTransportServer::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)))?;
+            Ok(BrowserPairing::new(
+                task,
+                server,
+                identity,
+                discovery_key,
+                invite,
+            ))
+        })
+        .await
     }
 }
 

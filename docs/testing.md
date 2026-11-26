@@ -54,6 +54,12 @@ Then `e2e/send.e2e.mjs` does the reverse. Files are picked in the page through a
 reach the total, and the browser must hear `delivered`. A declined offer must come back as
 `declined`. A file edited on disk after it was picked must fail as a storage error naming it.
 
+`e2e/phone-pairing.e2e.mjs` pairs the browser with the phone app's engine instead:
+`beam-ffi/examples/browser_pairing_peer.rs` makes the same `Engine.pairWithBrowser` calls as
+the Android app. A browser that connects holding another code must be refused while the phone
+keeps waiting. Then the right browser pairs, each side must learn the other's name and public
+key, and the code must refuse a second pairing.
+
 The same script then runs beam-web's browser-only Rust tests (`core/beam-web/tests`) in that
 Chromium: `wasm-bindgen-test-runner` serves them and `e2e/wasm-tests.e2e.mjs` opens the page
 and reports the result. `tests/opfs_staging.rs` runs in a dedicated worker, where OPFS sync
