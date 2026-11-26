@@ -9,6 +9,7 @@ use tokio::net::TcpStream;
 use tokio::runtime::Handle;
 use tokio::task::JoinSet;
 
+use crate::network::over;
 use crate::runtime::run;
 use crate::{BeamError, DeviceIdentity, SessionCipher};
 
@@ -150,6 +151,7 @@ pub(crate) async fn pair_with(
     local: Local,
     code: String,
     name: String,
+    network: Option<u64>,
 ) -> Result<PairedDevice, BeamError> {
     let invite = PairingInvite::decode(&code)?;
     if invite.hints.is_empty() {
@@ -158,7 +160,7 @@ pub(crate) async fn pair_with(
         });
     }
     run(handle, async move {
-        let mut conn = connect_first(&local.identity, &invite).await?;
+        let mut conn = connect_first(&local.identity, &invite, network).await?;
         let hello = Hello::new(&name, local.discovery_key);
         introduce(&mut conn, &hello, invite.cipher.into()).await
     })
@@ -169,6 +171,7 @@ pub(crate) async fn pair_with(
 async fn connect_first(
     identity: &Arc<DeviceIdentity>,
     invite: &PairingInvite,
+    network: Option<u64>,
 ) -> Result<Connection<TcpStream>, BeamError> {
     let mut attempts = JoinSet::new();
     for &hint in &invite.hints {
@@ -179,7 +182,7 @@ async fn connect_first(
             &invite.token,
             invite.displayer,
         )?;
-        attempts.spawn(tcp::connect(hint, handshake));
+        attempts.spawn(tcp::connect_prepared(hint, handshake, over(network)));
     }
     let mut last_error = None;
     while let Some(attempt) = attempts.join_next().await {

@@ -54,6 +54,7 @@ async fn a_repeat_after_a_restart_is_confirmed_not_offered() {
             phone_identity.public_key(),
             CIPHER,
             Arc::new(Ignore),
+            None,
         )
     };
 

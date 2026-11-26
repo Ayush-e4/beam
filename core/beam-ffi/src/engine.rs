@@ -164,13 +164,20 @@ impl Engine {
     ///
     /// [`BeamError::Protocol`] if `code` isn't a Beam pairing code (the message says why),
     /// [`BeamError::Network`] if the device can't be reached, and [`BeamError::Crypto`] if the
-    /// device that answered isn't the one in the code.
-    pub async fn pair_with(&self, code: String, name: String) -> Result<PairedDevice, BeamError> {
+    /// device that answered isn't the one in the code. `network` is as for
+    /// [`crate::OutgoingTransfer::send_to`].
+    #[uniffi::method(default(network = None))]
+    pub async fn pair_with(
+        &self,
+        code: String,
+        name: String,
+        network: Option<u64>,
+    ) -> Result<PairedDevice, BeamError> {
         let local = Local {
             identity: self.identity.clone(),
             discovery_key: self.discovery_key(),
         };
-        pair_with(&self.handle()?, local, code, name).await
+        pair_with(&self.handle()?, local, code, name, network).await
     }
 }
 

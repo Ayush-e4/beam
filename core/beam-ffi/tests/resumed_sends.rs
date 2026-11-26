@@ -83,7 +83,7 @@ async fn a_send_resumes_under_its_old_id_after_a_restart() {
         let port = listener.port();
         async move {
             outgoing
-                .send_to("127.0.0.1".into(), port, key, CIPHER, watch(0))
+                .send_to("127.0.0.1".into(), port, key, CIPHER, watch(0), None)
                 .await
         }
     };

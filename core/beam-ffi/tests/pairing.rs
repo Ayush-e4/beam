@@ -42,7 +42,7 @@ async fn pairing_hands_over_discovery_keys_for_the_current_generation() {
     let (host, code) = host(&a).await;
     let (shown, scanned) = tokio::join!(
         host.wait_for_device("Phone A".into()),
-        b.engine.pair_with(code, "Phone B".into())
+        b.engine.pair_with(code, "Phone B".into(), None)
     );
     let (shown, scanned) = (shown.unwrap(), scanned.unwrap());
 
@@ -70,7 +70,7 @@ async fn two_phones_pair_and_learn_each_other() {
     let (host, code) = host(&a).await;
     let (shown, scanned) = tokio::join!(
         host.wait_for_device("Phone A".into()),
-        b.engine.pair_with(code, "Phone B".into())
+        b.engine.pair_with(code, "Phone B".into(), None)
     );
     let (shown, scanned) = (shown.unwrap(), scanned.unwrap());
 
@@ -108,7 +108,7 @@ async fn forged_codes_fail_and_the_host_keeps_waiting() {
             beam_core::PublicKey::from_bytes(mallory.identity.public_key().try_into().unwrap());
     });
     for forged in [wrong_token, wrong_key] {
-        let result = b.engine.pair_with(forged, "Phone B".into()).await;
+        let result = b.engine.pair_with(forged, "Phone B".into(), None).await;
         assert!(
             matches!(
                 result,
@@ -120,7 +120,11 @@ async fn forged_codes_fail_and_the_host_keeps_waiting() {
     }
 
     // The real code still works.
-    let paired = b.engine.pair_with(code, "Phone B".into()).await.unwrap();
+    let paired = b
+        .engine
+        .pair_with(code, "Phone B".into(), None)
+        .await
+        .unwrap();
     assert_eq!(paired.public_key, a.identity.public_key());
     assert_eq!(waiting.await.unwrap().unwrap().name, "Phone B");
 }
@@ -138,7 +142,7 @@ async fn an_unreachable_address_does_not_stop_pairing() {
     });
     let (shown, scanned) = tokio::join!(
         host.wait_for_device("Phone A".into()),
-        b.engine.pair_with(code, "Phone B".into())
+        b.engine.pair_with(code, "Phone B".into(), None)
     );
     assert_eq!(shown.unwrap().name, "Phone B");
     assert_eq!(scanned.unwrap().name, "Phone A");
@@ -151,7 +155,10 @@ async fn other_codes_are_refused_with_a_reason() {
         ("https://example.com", "not a Beam pairing code"),
         ("BEAM1:AAAA", "pairing code"),
     ] {
-        let result = b.engine.pair_with(code.into(), "Phone B".into()).await;
+        let result = b
+            .engine
+            .pair_with(code.into(), "Phone B".into(), None)
+            .await;
         match result {
             Err(BeamError::Protocol { detail }) => assert!(detail.contains(why), "{detail}"),
             other => panic!("{code}: {other:?}"),
@@ -180,7 +187,7 @@ async fn a_paired_device_can_send_right_away() {
     let (host, code) = host(&a).await;
     let (shown, scanned) = tokio::join!(
         host.wait_for_device("Phone A".into()),
-        b.engine.pair_with(code, "Phone B".into())
+        b.engine.pair_with(code, "Phone B".into(), None)
     );
     let (phone_b, phone_a) = (shown.unwrap(), scanned.unwrap());
 
@@ -214,6 +221,7 @@ async fn a_paired_device_can_send_right_away() {
         phone_a.public_key.clone(),
         phone_a.cipher,
         Arc::new(Quiet),
+        None,
     );
     let (outcome, _) = tokio::join!(send, receive);
     assert_eq!(outcome.unwrap(), SendResult::Delivered);

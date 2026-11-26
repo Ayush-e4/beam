@@ -81,6 +81,7 @@ async fn shared_files_arrive_and_the_app_keeps_its_descriptors() {
         phone_identity.public_key(),
         CIPHER,
         Arc::new(Ignore),
+        None,
     );
     let (result, saved) = tokio::join!(send, receive);
     assert_eq!(result.unwrap(), SendResult::Delivered);

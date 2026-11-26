@@ -6,6 +6,7 @@ use beam_core::{Handshake, Sender, send_transfer, tcp};
 use tokio::net::lookup_host;
 use tokio::runtime::Handle;
 
+use crate::network::over;
 use crate::progress::{ProgressListener, reporting};
 use crate::runtime::run;
 use crate::types::peer_key;
@@ -60,6 +61,10 @@ impl OutgoingTransfer {
     /// the link drops (worth retrying). A device without `peer_public_key` can't read the
     /// handshake and hangs up, which also shows as a network error. [`BeamError::Storage`] if
     /// a file changed or can't be read, [`BeamError::Cancelled`] if the receiver cancelled.
+    /// `network` (Android's `Network.getNetworkHandle()`) sends the connection over that
+    /// network instead of the default one, which may be a VPN that can't reach the device;
+    /// elsewhere it is a network error.
+    #[uniffi::method(default(network = None))]
     pub async fn send_to(
         &self,
         host: String,
@@ -67,6 +72,7 @@ impl OutgoingTransfer {
         peer_public_key: Vec<u8>,
         cipher: SessionCipher,
         progress: Arc<dyn ProgressListener>,
+        network: Option<u64>,
     ) -> Result<SendResult, BeamError> {
         let peer = peer_key(&peer_public_key)?;
         let identity = self.identity.clone();
@@ -86,10 +92,11 @@ impl OutgoingTransfer {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .progress();
-            let outcome = reporting(watched, progress, async {
-                let mut conn = tcp::connect(addr, handshake).await?;
+            // Boxed: the transfer's state is large, and callers hold this future.
+            let outcome = Box::pin(reporting(watched, progress, async {
+                let mut conn = tcp::connect_prepared(addr, handshake, over(network)).await?;
                 send_transfer(&mut conn, &sender).await
-            })
+            }))
             .await?;
             Ok(outcome.into())
         })
