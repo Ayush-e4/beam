@@ -3,6 +3,11 @@
 //! can't reach the other device. The app names the Wi-Fi (or other local) network by its
 //! `Network.getNetworkHandle()`, and the engine connects over that network directly. Only
 //! connections to nearby devices are affected; everything else still goes through the VPN.
+//!
+//! Android only allows this when the VPN lets apps bypass it. When it doesn't, binding is
+//! refused (`EPERM`) and the connection takes the default route as before: such a VPN may
+//! still leave local traffic alone ("allow LAN"), and if it doesn't, nothing an app does can
+//! reach the device, so the app explains that instead.
 
 use std::io;
 use std::sync::Arc;
@@ -11,9 +16,20 @@ use beam_core::tcp::PrepareSocket;
 use tokio::net::TcpSocket;
 
 /// What to do to each socket before it connects: nothing without a network, otherwise send it
-/// over `network` (a `Network.getNetworkHandle()`).
+/// over `network` (a `Network.getNetworkHandle()`) if Android allows it.
 pub(crate) fn over(network: Option<u64>) -> Option<PrepareSocket> {
-    network.map(|handle| -> PrepareSocket { Arc::new(move |socket| bind(handle, socket)) })
+    network.map(|handle| -> PrepareSocket {
+        Arc::new(move |socket| refusal_is_default_route(bind(handle, socket)))
+    })
+}
+
+/// A VPN that doesn't allow bypassing makes Android refuse the binding; the socket then
+/// keeps the default route. Every other failure (an unknown network, say) is an error.
+fn refusal_is_default_route(bound: io::Result<()>) -> io::Result<()> {
+    match bound {
+        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => Ok(()),
+        other => other,
+    }
 }
 
 #[cfg(target_os = "android")]
@@ -61,6 +77,16 @@ mod tests {
     #[test]
     fn no_network_leaves_sockets_alone() {
         assert!(over(None).is_none());
+    }
+
+    #[test]
+    fn a_refused_binding_keeps_the_default_route_and_other_errors_stay() {
+        let eperm = io::Error::from_raw_os_error(1);
+        assert_eq!(eperm.kind(), io::ErrorKind::PermissionDenied);
+        assert!(refusal_is_default_route(Err(eperm)).is_ok());
+        assert!(refusal_is_default_route(Ok(())).is_ok());
+        let unknown = io::Error::from_raw_os_error(64); // ENONET on Linux and Android
+        assert!(refusal_is_default_route(Err(unknown)).is_err());
     }
 
     #[cfg(not(target_os = "android"))]

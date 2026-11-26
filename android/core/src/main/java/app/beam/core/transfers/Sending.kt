@@ -169,6 +169,9 @@ class Sending(
                 is SendResult.Declined -> TransferState.Declined(result.reason)
             }
         }
+        if (unreachable != null && networks.behindVpn) {
+            throw BeamException.Network(vpnBlocks(device.name, unreachable.reason()))
+        }
         throw unreachable ?: BeamException.Network("${device.name} has no address")
     }
 
@@ -214,6 +217,11 @@ class Sending(
     }
 
     companion object {
+        /** Why [name] couldn't be reached while a VPN is on, keeping the engine's [detail]. */
+        internal fun vpnBlocks(name: String, detail: String) =
+            "A VPN on this phone is blocking $name: allow local network access in the VPN " +
+                "app, or pause it ($detail)"
+
         /** How long a send waits to be resumed; the receiver keeps its part as long. */
         const val KEEP_PENDING_DAYS = Inbox.KEEP_UNFINISHED_DAYS
         private const val RETRY_AFTER_MS = 30_000L
