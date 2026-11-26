@@ -236,6 +236,30 @@ pub async fn remove_staged(
     Ok(())
 }
 
+/// The `data` file [`OpfsStaging::open`] filled with the same arguments, to save each item
+/// from its slice (see [`layout`]). Read it before [`remove_staged`]: a removed file can't be
+/// read any more.
+///
+/// # Errors
+///
+/// A storage error if there is no such staging.
+pub async fn staged_data(
+    root: &FileSystemDirectoryHandle,
+    manifest: &Manifest,
+    selection: &[u32],
+    sender: &[u8],
+) -> Result<web_sys::File> {
+    let items = layout(manifest, selection)?;
+    let receiving = folder(root, RECEIVING).await.map_err(BeamError::storage)?;
+    let dir = folder(&receiving, &folder_name(manifest, &items, sender))
+        .await
+        .map_err(BeamError::storage)?;
+    let data: web_sys::FileSystemFileHandle = resolve(dir.get_file_handle("data"))
+        .await
+        .map_err(BeamError::storage)?;
+    resolve(data.get_file()).await.map_err(BeamError::storage)
+}
+
 #[cfg(test)]
 #[path = "opfs_staging_tests.rs"]
 mod tests;

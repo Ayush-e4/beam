@@ -39,6 +39,13 @@ peer "scans" it and serves WebTransport, both pair and must show the same verifi
 wrong invite must be refused (`crypto`) without the peer ever reporting a pairing. Locally,
 `CHROMIUM_PATH` can point at any Chromium; `wasm-bindgen-cli` must match `core/Cargo.lock`.
 
+It then runs `e2e/receive.e2e.mjs`: the peer sends a folder (a 24 MiB incompressible file, a
+compressible one, an empty one, a nested one) and a loose file to the engine in a dedicated
+worker (`e2e/worker.mjs`, a stand-in for the web app's). Every file must come back from OPFS
+with its name and SHA-256, progress must reach the total, and the phone must hear `Delivered`.
+A declined offer must reach the phone as `UserDeclined`. It prints the speed; with a release
+peer, loopback reaches about 70–100 MiB/s on one browser core.
+
 The same script then runs beam-web's browser-only Rust tests (`core/beam-web/tests`) in that
 Chromium: `wasm-bindgen-test-runner` serves them and `e2e/wasm-tests.e2e.mjs` opens the page
 and reports the result. `tests/opfs_staging.rs` runs in a dedicated worker, where OPFS sync

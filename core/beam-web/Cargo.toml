@@ -20,6 +20,8 @@ tokio = { version = "1.54.1", features = ["io-util"] }
 wasm-bindgen = "0.2.130"
 wasm-bindgen-futures = "0.4.80"
 web-sys = { version = "0.3.107", features = [
+  "Blob",
+  "File",
   "FileSystemDirectoryHandle",
   "FileSystemFileHandle",
   "FileSystemGetDirectoryOptions",
@@ -32,6 +34,11 @@ web-sys = { version = "0.3.107", features = [
   "WritableStream",
   "WritableStreamDefaultWriter",
 ] }
+
+# Host builds exist so the workspace can lint and unit-test this crate. The transfer loops
+# there run on beam-core's native runtime.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+beam-core = { path = "../beam-core" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.80"
