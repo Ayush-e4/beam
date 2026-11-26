@@ -85,3 +85,7 @@ required-features = ["native"]
 [[example]]
 name = "webtransport_echo"
 required-features = ["native"]
+
+[[example]]
+name = "webtransport_peer"
+required-features = ["native"]
