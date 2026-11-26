@@ -109,6 +109,9 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
     nearby device goes over the Wi-Fi network instead of a VPN that would capture it and can't
     reach the device. It only sets a socket option on a socket the engine owns; an unknown
     network fails with an error. Only connections to nearby devices are affected; everything
-    else stays on the VPN, and Beam traffic is end-to-end encrypted either way.
+    else stays on the VPN, and Beam traffic is end-to-end encrypted either way. Android allows
+    this only when the VPN lets apps bypass it; otherwise the connection keeps the default
+    route, and if the VPN captures local traffic the app tells the person to allow local
+    network access in it or pause it. Beam never tries to get around such a VPN.
 - Security review before each major release; an external audit is planned before v2.
 - Private disclosure channel for vulnerability reports.
