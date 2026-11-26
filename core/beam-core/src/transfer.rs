@@ -75,8 +75,9 @@ pub async fn send_transfer<S: AsyncRead + AsyncWrite + Unpin>(
         if let Some(reason) = await_reply(conn, sender, transfer_id).await? {
             return Ok(SendOutcome::Rejected(reason));
         }
-        stream_chunks(conn, sender, transfer_id).await?;
-        await_done(conn, transfer_id).await?;
+        if stream_chunks(conn, sender, transfer_id).await? == Streamed::Acknowledged {
+            await_done(conn, transfer_id).await?;
+        }
         conn.close().await?;
         Ok(SendOutcome::Delivered)
     }
@@ -103,16 +104,18 @@ async fn stream_chunks<S: AsyncRead + AsyncWrite + Unpin>(
     conn: &mut Connection<S>,
     sender: &Arc<Mutex<Sender>>,
     transfer_id: TransferId,
-) -> Result<()> {
+) -> Result<Streamed> {
     let mut exhausted = false;
     loop {
         if lock(sender).is_complete() {
-            return Ok(());
+            return Ok(Streamed::Acknowledged);
         }
         while let Some(frame) = try_recv(conn).await? {
-            handle_ack(sender, &frame, transfer_id)?;
+            if is_done(sender, &frame, transfer_id)? {
+                return confirm_done(sender).await;
+            }
             if lock(sender).is_complete() {
-                return Ok(());
+                return Ok(Streamed::Acknowledged);
             }
         }
         let can_send = lock(sender).can_send();
@@ -128,22 +131,49 @@ async fn stream_chunks<S: AsyncRead + AsyncWrite + Unpin>(
             continue;
         }
         let frame = recv_frame(conn).await?;
-        handle_ack(sender, &frame, transfer_id)?;
+        if is_done(sender, &frame, transfer_id)? {
+            return confirm_done(sender).await;
+        }
     }
 }
 
-fn handle_ack(sender: &Arc<Mutex<Sender>>, frame: &Frame, transfer_id: TransferId) -> Result<()> {
+/// How streaming ended: every chunk acknowledged, or the receiver already said `done`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Streamed {
+    Acknowledged,
+    Done,
+}
+
+/// Applies an `ACK`. True if it is the receiver's `done` (an empty `ACK`).
+fn is_done(sender: &Arc<Mutex<Sender>>, frame: &Frame, transfer_id: TransferId) -> Result<bool> {
     if frame.frame_type != FrameType::Ack {
         return Err(unexpected(frame, transfer_id));
     }
     let ranges = decode_ack(&frame.payload)?;
     if ranges.is_empty() {
-        return Err(BeamError::Malformed(
-            "receiver finished before every chunk was acknowledged".into(),
-        ));
+        return Ok(true);
     }
     lock(sender).handle_ack(&ranges);
-    Ok(())
+    Ok(false)
+}
+
+/// The receiver said `done`. It may say so right behind the last `ACK`, before the sender
+/// looked for a next chunk (its window was full), so look now: `done` only holds if nothing is
+/// left to send or to be acknowledged.
+async fn confirm_done(sender: &Arc<Mutex<Sender>>) -> Result<Streamed> {
+    let shared = Arc::clone(sender);
+    let complete = blocking(move || {
+        let mut sender = lock(&shared);
+        Ok(sender.next_chunk()?.is_none() && sender.is_complete())
+    })
+    .await?;
+    if complete {
+        Ok(Streamed::Done)
+    } else {
+        Err(BeamError::Malformed(
+            "receiver finished before every chunk was acknowledged".into(),
+        ))
+    }
 }
 
 async fn await_done<S: AsyncRead + AsyncWrite + Unpin>(

@@ -82,6 +82,10 @@ required-features = ["native"]
 name = "transfer_loopback"
 required-features = ["native"]
 
+[[test]]
+name = "transfer_done_race"
+required-features = ["native"]
+
 [[example]]
 name = "webtransport_echo"
 required-features = ["native"]
