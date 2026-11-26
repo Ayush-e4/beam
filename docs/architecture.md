@@ -58,8 +58,8 @@ Shared engine, compiled for Android, the browser (WebAssembly) and later desktop
   folders picked on the Mac.
 - Received data is staged through the `TransferStaging` trait, and the resume journal is written
   through `StorageFile`. On the phone and the Mac the staging is a hidden folder next to the
-  destination. In the browser it will be one OPFS file per transfer, written with sync access
-  handles from the worker. `Receiver::open_staged` opens a receiver over any staging.
+  destination. In the browser it is one OPFS file per transfer, written with sync access
+  handles from the worker (see beam-web below). `Receiver::open_staged` opens a receiver over any staging.
 - Exposed to Kotlin through `beam-ffi`, a thin layer whose bindings UniFFI generates (Kotlin
   package `app.beam.core`, loaded through JNA). Every fallible call returns a typed
   `BeamException` with one subclass per error category (network, storage, permission,
@@ -74,6 +74,19 @@ browser's key pair, saved in IndexedDB by the app), `Invite` (the QR text and si
 which runs the Noise handshake and encrypted session over a WebTransport bidirectional stream.
 `js_stream.rs` adapts the stream's `readable`/`writable` into tokio's byte-stream traits, so the
 engine code is unchanged. Errors are `Error`s named `BeamError` with a `category`.
+
+Received files are staged in OPFS (`opfs_staging.rs`) from the web app's dedicated worker. OPFS
+reads and writes are synchronous there, but opening and removing files are not, so each
+transfer's three files are opened up front in `beam-receiving/<transfer>-<owner>/`:
+
+- `data`: the selected items back to back;
+- `roots`: their root hashes;
+- `journal`: the resume journal.
+
+`<owner>` is a digest of the sender's key and the chosen items, so neither another sender nor
+another selection reuses the staging. While the files are open no other tab can open them. A
+finished item stays in `data`; the app saves each one from its slice (`layout`), then removes
+the staging.
 
 ### WebRTC peer (Android)
 

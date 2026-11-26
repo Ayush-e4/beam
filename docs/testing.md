@@ -39,6 +39,16 @@ peer "scans" it and serves WebTransport, both pair and must show the same verifi
 wrong invite must be refused (`crypto`) without the peer ever reporting a pairing. Locally,
 `CHROMIUM_PATH` can point at any Chromium; `wasm-bindgen-cli` must match `core/Cargo.lock`.
 
+The same script then runs beam-web's browser-only Rust tests (`core/beam-web/tests`) in that
+Chromium: `wasm-bindgen-test-runner` serves them and `e2e/wasm-tests.e2e.mjs` opens the page
+and reports the result. `tests/opfs_staging.rs` runs in a dedicated worker, where OPFS sync
+handles exist. A sender reads files from memory into a receiver staging in OPFS, and the tests
+check that:
+
+- a whole transfer (a multi-chunk file, a packed small file, an empty file) arrives intact;
+- a transfer resumes after the worker stops mid-transfer;
+- a second tab can't open a transfer that is in progress.
+
 ### Mac command-line device (`core/beam-cli`)
 
 A second Beam device for when there's no second phone: `beam` pairs, sends and receives with

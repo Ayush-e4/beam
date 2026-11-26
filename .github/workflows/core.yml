@@ -67,7 +67,8 @@ jobs:
         run: cargo test --locked -p beam-core --no-default-features
 
   web-engine:
-    # The WebAssembly engine in headless Chromium pairs with a native peer over WebTransport.
+    # The WebAssembly engine in headless Chromium pairs with a native peer over WebTransport,
+    # then beam-web's browser-only tests (OPFS staging in a dedicated worker) run there too.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -94,7 +95,7 @@ jobs:
         run: |
           echo "CC_wasm32_unknown_unknown=clang" >> "$GITHUB_ENV"
           echo "AR_wasm32_unknown_unknown=$(command -v llvm-ar || ls /usr/bin/llvm-ar-* | sort -V | tail -1)" >> "$GITHUB_ENV"
-      - name: Pair the browser engine with a native peer
+      - name: Pair the browser engine with a native peer, then run the browser tests
         run: tools/web-engine-test.sh
 
   m1-exit:
