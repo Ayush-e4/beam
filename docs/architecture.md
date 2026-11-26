@@ -56,6 +56,10 @@ Shared engine, compiled for Android, the browser (WebAssembly) and later desktop
 - Source files are read by position through the `ReadAt` trait: a `File` on the phone and the
   Mac, a picked file (`FileReaderSync`) in the browser's worker. Paths are only needed for
   folders picked on the Mac.
+- Received data is staged through the `TransferStaging` trait, and the resume journal is written
+  through `StorageFile`. On the phone and the Mac the staging is a hidden folder next to the
+  destination. In the browser it will be one OPFS file per transfer, written with sync access
+  handles from the worker. `Receiver::open_staged` opens a receiver over any staging.
 - Exposed to Kotlin through `beam-ffi`, a thin layer whose bindings UniFFI generates (Kotlin
   package `app.beam.core`, loaded through JNA). Every fallible call returns a typed
   `BeamException` with one subclass per error category (network, storage, permission,

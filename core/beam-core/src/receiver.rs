@@ -26,15 +26,15 @@ use crate::manifest::{MAX_CHUNK_SIZE, Manifest, ManifestItem, PACK_ITEM_ID};
 use crate::messages::{ChunkHeader, ChunkRange};
 use crate::pack::{Unpacker, is_packable};
 use crate::progress::Progress;
-use crate::receiver_store::Store;
+use crate::transfer_staging::TransferStaging;
 use crate::{BeamError, Result};
 
-/// Receives one transfer into a destination folder.
+/// Receives one transfer into a destination folder, or any [`TransferStaging`].
 #[derive(Debug)]
 pub struct Receiver {
     manifest: Manifest,
     selected: HashSet<u32>,
-    store: Store,
+    store: Box<dyn TransferStaging>,
     journal: Journal,
     /// Chunk hashes seen this run, for root checks; earlier runs' chunks are re-read at finish.
     hashes: HashMap<u32, Vec<Option<Hash>>>,
@@ -239,3 +239,7 @@ mod tests;
 #[cfg(test)]
 #[path = "receiver_edge_tests.rs"]
 mod edge_tests;
+
+#[cfg(test)]
+#[path = "receiver_staged_tests.rs"]
+mod staged_tests;
