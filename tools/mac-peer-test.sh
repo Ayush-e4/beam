@@ -78,7 +78,11 @@ join_hotspot() {
 
 rejoin_usual_wifi() {
     echo "Rejoining the usual Wi-Fi…"
-    networksetup -removepreferredwirelessnetwork "$wifi_device" "$joined" >/dev/null 2>&1 || true
+    # macOS saves every network it joins; forgetting one needs an administrator.
+    if ! networksetup -removepreferredwirelessnetwork "$wifi_device" "$joined" >/dev/null 2>&1; then
+        echo "mac-peer-test: to forget the hotspot: sudo networksetup" \
+            "-removepreferredwirelessnetwork $wifi_device '$joined'" >&2
+    fi
     networksetup -setairportpower "$wifi_device" off
     sleep 1
     networksetup -setairportpower "$wifi_device" on
