@@ -43,6 +43,8 @@ pub mod tcp;
 pub mod transfer;
 pub mod verification;
 pub mod version;
+pub mod webtransport;
+mod webtransport_cert;
 mod wire;
 
 pub use chunk_set::ChunkSet;
