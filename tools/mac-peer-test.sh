@@ -147,6 +147,18 @@ wait_for "$work/receive.log" "RECEIVED" 30 >/dev/null
 received=$(stat -f %z "$work/inbox/from-phone.bin")
 [[ $received == $((mib * 1024 * 1024)) ]] || fail "the Mac got $received bytes"
 
+# The phone announces itself over mDNS; the Mac must see its beacon.
+beacon=$(phone_says ANNOUNCING 30 | sed -E 's/.*beacon=([^ ]+).*/\1/')
+dns-sd -B _beam._tcp local. >"$work/browse.log" 2>&1 &
+browsing=$!
+found=""
+for _ in $(seq 100); do
+    grep -q "$beacon" "$work/browse.log" && found=yes && break
+    sleep 0.1
+done
+kill "$browsing" 2>/dev/null || true
+[[ -n $found ]] || fail "the Mac didn't see the phone's beacon $beacon:$(echo; cat "$work/browse.log")"
+
 phone_says LISTENING 30 >/dev/null
 head -c $((mib * 1024 * 1024)) /dev/urandom >"$work/from-mac.bin"
 "$beam" send "$phone_name" "$phone_ip" "$phone_port" "$work/from-mac.bin" >"$work/send.log" 2>&1 ||
@@ -156,5 +168,6 @@ grep -q "OK (1 test)" "$work/instrument.log" ||
     fail "the phone test failed:$(echo; cat "$work/instrument.log")"
 
 echo "Paired: both sides show $(verify "$mac_paired")"
+echo "Discovery: the Mac saw the phone's beacon"
 echo "Phone → Mac: $(grep "^LAN SENT" "$work/phone.log" | cut -d' ' -f3-)"
 echo "Mac → phone: $(grep "^LAN RECEIVED" "$work/phone.log" | cut -d' ' -f3-)"
