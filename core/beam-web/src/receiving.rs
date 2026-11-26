@@ -3,21 +3,17 @@
 //! page to save. An interrupted transfer that is offered again resumes where it stopped.
 
 use std::fmt::Write as _;
-use std::future::{Future, poll_fn};
-use std::pin::pin;
 
 use beam_core::messages::Reason;
-use beam_core::{Manifest, Progress, Receiver, read_offer, receive_transfer, reject_offer};
-use js_sys::{Array, Date, Function};
+use beam_core::{Manifest, Receiver, read_offer, receive_transfer, reject_offer};
+use js_sys::{Array, Function};
 use wasm_bindgen::prelude::*;
 use web_sys::{Blob, FileSystemDirectoryHandle};
 
 use crate::BeamConnection;
 use crate::errors::beam_error;
 use crate::opfs_staging::{OpfsStaging, StagedItem, layout, remove_staged, staged_data};
-
-/// How often, at most, the page hears about progress.
-const PROGRESS_EVERY_MS: f64 = 100.0;
+use crate::progress::{js_number, reporting};
 
 /// Files the phone offers to send.
 #[wasm_bindgen]
@@ -185,36 +181,4 @@ impl BeamConnection {
             sender,
         })
     }
-}
-
-/// Runs `future`, telling `report` how far `progress` got whenever the future wakes for new
-/// data (at most every [`PROGRESS_EVERY_MS`]) and once when it ends.
-async fn reporting<F: Future>(
-    future: F,
-    progress: &Progress,
-    report: Option<&Function>,
-) -> F::Output {
-    let mut future = pin!(future);
-    let mut last = f64::NEG_INFINITY;
-    poll_fn(|cx| {
-        let polled = future.as_mut().poll(cx);
-        if let Some(report) = report {
-            let now = Date::now();
-            if polled.is_ready() || now - last >= PROGRESS_EVERY_MS {
-                last = now;
-                let done = JsValue::from(js_number(progress.bytes_done()));
-                let total = JsValue::from(js_number(progress.bytes_total()));
-                // A throwing callback is the page's bug; the transfer itself is fine.
-                let _ = report.call2(&JsValue::NULL, &done, &total);
-            }
-        }
-        polled
-    })
-    .await
-}
-
-/// A byte count as a JavaScript number, exact below 2^53 (8 PiB).
-#[allow(clippy::cast_precision_loss)]
-const fn js_number(n: u64) -> f64 {
-    n as f64
 }

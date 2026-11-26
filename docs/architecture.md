@@ -89,6 +89,12 @@ WebTransport session itself:
 - It returns a `ReceivedTransfer`. `files()` gives a `File` per item (a slice of the staged
   data, named like the file). `remove()` deletes the staging once the page has saved them.
 
+Sending (`sending.rs`) reads the `File`s the person picked by position, with `FileReaderSync`
+(workers only). `connection.sendFiles(files, onProgress)` offers them and returns `"delivered"`
+or the phone's reason (`"declined"`, `"no-space"`, `"busy"`, `"failed"`). A `File` is a
+snapshot: if the file is edited or deleted after it was picked, reading fails and the send
+stops with a storage error naming it.
+
 Received files are staged in OPFS (`opfs_staging.rs`) from the web app's dedicated worker. OPFS
 reads and writes are synchronous there, but opening and removing files are not, so each
 transfer's three files are opened up front in `beam-receiving/<transfer>-<owner>/`:

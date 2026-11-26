@@ -8,7 +8,9 @@ mod errors;
 mod js_stream;
 pub mod opfs_file;
 pub mod opfs_staging;
+mod progress;
 mod receiving;
+mod sending;
 
 use beam_core::{
     Cipher, Connection, Frame, FrameType, Handshake, PairingInvite, PublicKey, Role, StaticKeypair,
