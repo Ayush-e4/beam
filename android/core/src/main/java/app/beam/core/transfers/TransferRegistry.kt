@@ -26,7 +26,9 @@ sealed interface TransferState {
 
     data object Done : Ended
     data class Declined(val reason: DeclineReason) : Ended
-    data class Failed(val reason: String) : Ended
+
+    /** [reason] is the engine's, for logs; [problem] says why, when the device was unreachable. */
+    data class Failed(val reason: String, val problem: Problem? = null) : Ended
 
     /** Stopped on purpose (by the person, or by Android); the next attempt resumes. */
     data object Cancelled : Ended

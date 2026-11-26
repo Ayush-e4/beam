@@ -128,6 +128,8 @@ class Sending(
             } catch (e: CancellationException) {
                 if (e.isByPerson()) forget(send.transferId)
                 throw e
+            } catch (e: DeviceUnreachable) {
+                throw e // resumed when the device is reachable again
             } catch (e: BeamException.Network) {
                 throw e // the device went away; resumed when it is back
             } catch (e: BeamException) {
@@ -150,6 +152,7 @@ class Sending(
     ): TransferState.Ended {
         val device = nearby.device
         var unreachable: BeamException.Network? = null
+        val attempts = ArrayList<Attempt>()
         for (address in nearby.addresses.sortedBy { if (it is Inet4Address) 0 else 1 }) {
             val result = try {
                 transfer.sendTo(
@@ -163,6 +166,8 @@ class Sending(
             } catch (e: BeamException.Network) {
                 Log.i(TAG, "${device.name} not reachable at $address: ${e.reason()}")
                 unreachable = e
+                attempts +=
+                    Attempt(e.failure, onLocalNetwork = networks.networkFor(address) != null)
                 continue
             }
             return when (result) {
@@ -170,14 +175,10 @@ class Sending(
                 is SendResult.Declined -> TransferState.Declined(result.reason)
             }
         }
-        if (unreachable != null && networks.behindVpn) {
-            throw BeamException.Network(
-                vpnBlocks(device.name, unreachable.reason()),
-                unreachable.failure
-            )
-        }
-        throw unreachable
-            ?: BeamException.Network("${device.name} has no address", NetworkFailure.OTHER)
+        val last = unreachable
+            ?: BeamException.Network("${device.name} has no address", NetworkFailure.NO_ANSWER)
+        val problem = problemOf(attempts, networks.behindVpn) ?: throw last
+        throw DeviceUnreachable(problem, last)
     }
 
     private suspend fun prepare(
@@ -222,11 +223,6 @@ class Sending(
     }
 
     companion object {
-        /** Why [name] couldn't be reached while a VPN is on, keeping the engine's [detail]. */
-        internal fun vpnBlocks(name: String, detail: String) =
-            "A VPN on this phone is blocking $name: allow local network access in the VPN " +
-                "app, or pause it ($detail)"
-
         /** How long a send waits to be resumed; the receiver keeps its part as long. */
         const val KEEP_PENDING_DAYS = Inbox.KEEP_UNFINISHED_DAYS
         private const val RETRY_AFTER_MS = 30_000L

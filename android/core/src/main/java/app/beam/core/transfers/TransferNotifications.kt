@@ -102,7 +102,7 @@ internal class TransferNotifications(private val context: Context) {
             is TransferState.Failed -> context.getString(
                 R.string.beam_failed,
                 status.title,
-                state.reason
+                state.problem?.let { context.getString(it.explanation) } ?: state.reason
             )
             TransferState.Cancelled -> context.getString(R.string.beam_cancelled, status.title)
         }
@@ -130,3 +130,12 @@ internal class TransferNotifications(private val context: Context) {
         private const val PROGRESS_MAX = 1000
     }
 }
+
+/** What to tell the person about this problem. */
+private val Problem.explanation: Int
+    get() = when (this) {
+        Problem.VPN_BLOCKS -> R.string.beam_problem_vpn
+        Problem.NETWORK_BLOCKS_DEVICES -> R.string.beam_problem_network
+        Problem.NOT_RECEIVING -> R.string.beam_problem_not_receiving
+        Problem.OUT_OF_REACH -> R.string.beam_problem_out_of_reach
+    }

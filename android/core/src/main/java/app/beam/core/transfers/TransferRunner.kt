@@ -45,6 +45,9 @@ class TransferRunner(
                 onEnded(TransferState.Cancelled, e)
                 registry.end(id, TransferState.Cancelled)
                 throw e
+            } catch (e: DeviceUnreachable) {
+                cause = e
+                TransferState.Failed(e.message.orEmpty(), e.problem)
             } catch (e: BeamException) {
                 cause = e
                 TransferState.Failed(e.reason())

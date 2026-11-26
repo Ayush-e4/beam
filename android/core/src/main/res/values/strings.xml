@@ -22,6 +22,10 @@
     <string name="beam_declined">%1$s was declined</string>
     <string name="beam_failed">Couldn\'t transfer %1$s: %2$s</string>
     <string name="beam_cancelled">Cancelled %1$s</string>
+    <string name="beam_problem_vpn">a VPN on this phone is blocking nearby devices. Allow local network access in it, or pause it.</string>
+    <string name="beam_problem_network">this Wi-Fi seems to stop devices from reaching each other. Try another network or a hotspot.</string>
+    <string name="beam_problem_not_receiving">Beam isn\'t open on the other device.</string>
+    <string name="beam_problem_out_of_reach">the other device isn\'t nearby.</string>
     <plurals name="beam_finished">
         <item quantity="one">%d transfer finished</item>
         <item quantity="other">%d transfers finished</item>
