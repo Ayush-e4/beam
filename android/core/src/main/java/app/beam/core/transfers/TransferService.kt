@@ -18,14 +18,16 @@ import kotlinx.coroutines.launch
 
 /**
  * Keeps the app process alive while transfers run, so they continue with the screen off or
- * the app closed (a `dataSync` foreground service). It shows overall progress, stops itself
- * when nothing is running and leaves a summary of how the transfers ended.
+ * the app closed (a `dataSync` foreground service), and keeps the phone awake for them
+ * ([StayAwake]). It shows overall progress, stops itself when nothing is running and leaves a
+ * summary of how the transfers ended.
  */
 class TransferService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var registry: TransferRegistry
     private lateinit var notifications: TransferNotifications
     private lateinit var manager: NotificationManager
+    private lateinit var awake: StayAwake
     private var watching: Job? = null
 
     @Volatile
@@ -36,6 +38,7 @@ class TransferService : Service() {
         registry = Transfers.get(this).registry
         notifications = TransferNotifications(this).also { it.createChannel() }
         manager = getSystemService(NotificationManager::class.java)
+        awake = StayAwake(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -53,12 +56,14 @@ class TransferService : Service() {
     override fun onTimeout(startId: Int, fgsType: Int) {
         Log.w(TAG, "Android stopped the transfer service after its daily time limit")
         registry.cancelAll(byPerson = false)
+        awake.release()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
         scope.cancel()
+        awake.release()
         super.onDestroy()
     }
 
@@ -94,15 +99,18 @@ class TransferService : Service() {
             val running = all.filter { it.isRunning }
             seen += running.map { it.id }
             if (running.isNotEmpty()) {
+                awake.hold()
                 manager.notify(TransferNotifications.ONGOING_ID, notifications.ongoing(running))
                 delay(UPDATE_EVERY_MS)
             } else if (seen.isNotEmpty()) {
+                awake.release()
                 notifications.showSummary(all.filter { it.id in seen })
                 seen.clear()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 // A transfer that started meanwhile has its own start ID, which keeps us alive.
                 stopSelfResult(lastStartId)
             } else {
+                awake.release()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelfResult(lastStartId)
             }
