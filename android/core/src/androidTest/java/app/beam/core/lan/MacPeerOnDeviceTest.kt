@@ -1,5 +1,7 @@
 package app.beam.core.lan
 
+import android.Manifest
+import android.os.Build
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -9,6 +11,8 @@ import app.beam.core.Engine
 import app.beam.core.ProgressListener
 import app.beam.core.SendResult
 import app.beam.core.TrustedKeys
+import app.beam.core.network.Hotspot
+import app.beam.core.network.HotspotSession
 import app.beam.core.network.LocalNetworks
 import java.io.File
 import java.net.InetAddress
@@ -24,34 +28,43 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The phone and a `beam` CLI on a Mac, over the real Wi-Fi: pair with the Mac's code, send it
- * a file, then receive one from it. Skipped unless `tools/lan-test.sh` passes the arguments
- * (`macCode`, `macHost`, `macPort`, `mib`); it reads the `LAN ` lines this test logs.
+ * The phone and a `beam` CLI on a Mac, over a real network: the phone's Wi-Fi, or (with
+ * `hotspot=true`) a hotspot the phone opens and the Mac joins. The phone waits for the Mac's
+ * pairing code, pairs, sends the Mac a file, then receives one from it.
+ *
+ * Skipped unless `tools/mac-peer-test.sh` runs it (`macPeer=true`). It reads the `LAN ` lines
+ * this test logs and pushes the code into [codeFile].
  */
 @RunWith(AndroidJUnit4::class)
 class MacPeerOnDeviceTest {
-    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context = instrumentation.targetContext
     private val root = File(context.cacheDir, "mac-peer-test")
+    private val codeFile = File(context.getExternalFilesDir(null), "mac-code.txt")
     private val networks = LocalNetworks(context)
+    private var hotspot: HotspotSession? = null
 
     @After
     fun cleanUp() {
+        hotspot?.close()
         networks.stop()
         root.deleteRecursively()
+        codeFile.delete()
     }
 
     @Test
     fun pairSendAndReceiveWithTheMac() = runBlocking {
         val args = InstrumentationRegistry.getArguments()
-        val code = args.getString("macCode")
-        assumeTrue("run by tools/lan-test.sh", code != null)
-        val host = requireNotNull(args.getString("macHost"))
-        val port = requireNotNull(args.getString("macPort")).toInt()
+        assumeTrue("run by tools/mac-peer-test.sh", args.getString("macPeer") == "true")
         val mib = args.getString("mib")?.toInt() ?: DEFAULT_MIB
+        codeFile.delete()
         networks.start()
+        if (args.getString("hotspot") == "true") openHotspot()
 
+        say("READY")
+        val (code, host, port) = withTimeout(MAC_WAIT_MS) { macCode() }
         Engine(DeviceIdentity.generate()).use { engine ->
-            val mac = engine.pairWith(requireNotNull(code), PHONE_NAME, null)
+            val mac = engine.pairWith(code, PHONE_NAME, null)
             say("PAIRED verify=${mac.verificationCode}")
 
             val listener = engine.listen(PHONE_PORT.toUShort(), mac.cipher, Only(mac.publicKey))
@@ -78,6 +91,29 @@ class MacPeerOnDeviceTest {
             say("LISTENING port=$PHONE_PORT")
             val saved = withTimeout(RECEIVE_WAIT_MS) { receive.await() }
             assertEquals(1, saved.size)
+        }
+    }
+
+    private suspend fun openHotspot() {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.NEARBY_WIFI_DEVICES
+        } else {
+            Manifest.permission.ACCESS_FINE_LOCATION
+        }
+        instrumentation.uiAutomation.grantRuntimePermission(context.packageName, permission)
+        val opened = Hotspot(context).start().also { hotspot = it }
+        // A throwaway network for this test only, so its password may be logged.
+        say("HOTSPOT address=${opened.address?.hostAddress} security=${opened.security}")
+        say("SSID ${opened.ssid}")
+        say("PASS ${opened.passphrase.orEmpty()}")
+    }
+
+    /** The script pushes three lines: the code, the Mac's address and its receiving port. */
+    private suspend fun macCode(): Triple<String, String, Int> {
+        while (true) {
+            val lines = codeFile.takeIf { it.exists() }?.readLines().orEmpty()
+            if (lines.size >= 3) return Triple(lines[0], lines[1], lines[2].trim().toInt())
+            delay(POLL_MS)
         }
     }
 
@@ -128,7 +164,9 @@ class MacPeerOnDeviceTest {
         const val PHONE_PORT = 47124
         const val MIB = 1024 * 1024
         const val DEFAULT_MIB = 64
+        const val MAC_WAIT_MS = 180_000L
         const val RECEIVE_WAIT_MS = 120_000L
+        const val POLL_MS = 200L
         const val SEND_TRIES = 40
         const val SEND_RETRY_MS = 500L
     }
