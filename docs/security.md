@@ -51,6 +51,9 @@
 - Trusted-device records store the device's public key, name, cipher and discovery key. The
   discovery key is the only secret: it lets this phone recognise that device's beacons, and
   can't be used to connect or impersonate it. Records live in no-backup app storage.
+- Transfer history (device names, file names and sizes, outcomes, times, where files were
+  saved) never leaves the phone: no-backup app storage, the newest 500 transfers, clearable by
+  the person. The engine's list of received transfer IDs lives next to it.
 
 ## Web app specifics
 

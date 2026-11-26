@@ -11,6 +11,8 @@ import app.beam.core.SendResult
 import app.beam.core.SessionCipher
 import app.beam.core.TrustedKeys
 import app.beam.core.files.Inbox
+import app.beam.core.history.Outcome
+import app.beam.core.history.TransferHistory
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,24 +40,21 @@ class ReceivingOnDeviceTest {
     private val registry = TransferRegistry()
     private val phone = DeviceIdentity.generate()
     private val phoneEngine = Engine(phone)
-    private val laptop = Engine(DeviceIdentity.generate())
-    private val receiving = Receiving(
-        context,
-        phoneEngine,
-        NobodyTrusted,
-        TransferRunner(scope, registry) {},
-        CIPHER
-    )
+    private val laptopKey = DeviceIdentity.generate()
+    private val laptop = Engine(laptopKey)
+    private val runner = TransferRunner(scope, registry) {}
+    private val finishedList = File(outbox, "finished-transfers.bin")
+    private val history = TransferHistory(File(outbox, "transfer-history.bin"))
+    private val receiving = receivingOn(phoneEngine)
     private val name = "beam-receiving-test-${System.nanoTime()}.bin"
+    private val stem = name.substringBefore(".bin")
 
     @After
     fun cleanUp() {
         scope.cancel()
         laptop.close()
         phoneEngine.close()
-        Inbox.folder(context).listFiles { file ->
-            file.name.startsWith(name.substringBefore(".bin"))
-        }
+        Inbox.folder(context).listFiles { file -> file.name.startsWith(stem) }
             ?.forEach { it.delete() }
         outbox.deleteRecursively()
     }
@@ -71,6 +70,9 @@ class ReceivingOnDeviceTest {
         assertEquals(name, first.summary.items.single().path)
         assertTrue(receiving.decline(first.id))
         assertEquals(SendResult.Declined(DeclineReason.USER_DECLINED), declined.await())
+        val decline = history.all().single()
+        assertEquals(Outcome.DECLINED to "USER_DECLINED", decline.outcome to decline.detail)
+        assertEquals("Laptop", decline.deviceName)
 
         val delivered = async { send(outgoing, port) }
         val second = withTimeout(WAIT_MS) { receiving.offers.first { it.isNotEmpty() }.single() }
@@ -79,6 +81,9 @@ class ReceivingOnDeviceTest {
         assertEquals(TransferState.Done, ended(id))
         assertEquals(emptyList<PendingOffer>(), receiving.offers.value)
         assertArrayEquals(bytes, File(Inbox.folder(context), name).readBytes())
+        val entry = history.all().single()
+        assertEquals("the same entry, now done", Outcome.DONE, entry.outcome)
+        assertEquals(listOf(File(Inbox.folder(context), name).path), entry.savedPaths)
     }
 
     @Test
@@ -95,6 +100,7 @@ class ReceivingOnDeviceTest {
         }
         registry.cancel(first)
         assertEquals(TransferState.Cancelled, ended(first))
+        assertEquals(Outcome.CANCELLED, history.all().single().outcome)
         cut.await() // the laptop sees the link drop
 
         val result = send(outgoing, port)
@@ -103,7 +109,55 @@ class ReceivingOnDeviceTest {
         assertEquals(TransferState.Done, ended(second.id))
         assertEquals("never asked again", emptyList<PendingOffer>(), receiving.offers.value)
         assertArrayEquals(bytes, File(Inbox.folder(context), name).readBytes())
+        assertEquals(Outcome.DONE, history.all().single().outcome)
     }
+
+    @Test
+    fun aRepeatAfterARestartIsConfirmedNotOffered() = runBlocking {
+        val bytes = ByteArray(MIB) { (it % 233).toByte() }
+        val outgoing = laptop.prepareSend(listOf(source(bytes).path))
+        val run = scope.launch { receiving.run() }
+        val port = withTimeout(WAIT_MS) { receiving.port.filterNotNull().first() }
+        val delivered = async { send(outgoing, port) }
+        val offer = withTimeout(WAIT_MS) { receiving.offers.first { it.isNotEmpty() }.single() }
+        val id = receiving.accept(offer.id) ?: error("the offer stopped waiting")
+        assertEquals(SendResult.Delivered, delivered.await())
+        assertEquals(TransferState.Done, ended(id))
+        run.cancel()
+        run.join()
+
+        // The app restarts with a new engine; the laptop missed "done" and asks again.
+        Engine(phone).use { restarted ->
+            val again = receivingOn(restarted)
+            val rerun = scope.launch { again.run() }
+            val newPort = withTimeout(WAIT_MS) { again.port.filterNotNull().first() }
+            assertEquals(SendResult.Delivered, send(outgoing, newPort))
+            assertEquals("never asked again", emptyList<PendingOffer>(), again.offers.value)
+            rerun.cancel()
+            rerun.join() // stop listening before the engine closes
+        }
+        val copies = Inbox.folder(context).listFiles { file -> file.name.startsWith(stem) }
+        assertEquals("no second copy", 1, copies?.size)
+    }
+
+    @Test
+    fun aDamagedListIsStartedAgain() = runBlocking {
+        finishedList.parentFile?.mkdirs()
+        finishedList.writeText("not a list")
+        assertTrue("still listens", listen() > 0)
+        Engine(phone).use { it.rememberFinishedIn(finishedList.path) } // a sound list now
+    }
+
+    private fun receivingOn(engine: Engine) = Receiving(
+        context,
+        engine,
+        NobodyTrusted,
+        runner,
+        CIPHER,
+        history,
+        deviceName = { key -> "Laptop".takeIf { key.contentEquals(laptopKey.publicKey()) } },
+        finishedList = finishedList
+    )
 
     private fun source(bytes: ByteArray) = File(outbox, name).apply {
         parentFile?.mkdirs()

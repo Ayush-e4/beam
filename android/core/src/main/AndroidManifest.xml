@@ -19,6 +19,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- While transfers run, the CPU (and below Android 14, Wi-Fi) stays awake so they don't
+         stall with the screen off. Granted at install, no prompt. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <!-- Received files go to Download/Beam. Android 11+ lets the app write there without
          asking; Android 10 and older need this permission (and legacy storage on 10). -->
     <uses-permission
