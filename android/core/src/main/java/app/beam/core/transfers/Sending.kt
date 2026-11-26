@@ -10,9 +10,11 @@ import app.beam.core.Engine
 import app.beam.core.OutgoingTransfer
 import app.beam.core.ProgressListener
 import app.beam.core.SendResult
+import app.beam.core.TransferSummary
 import app.beam.core.discovery.NearbyDevice
 import app.beam.core.files.Inbox
 import app.beam.core.files.prepareSendUris
+import app.beam.core.history.TransferHistory
 import app.beam.core.trust.TrustedDevice
 import java.io.IOException
 import java.net.Inet4Address
@@ -26,14 +28,19 @@ import kotlinx.coroutines.flow.Flow
  * [pending] until it is delivered, declined, cancelled by the person or can't be sent any
  * more; the rest (the device went away, the app was closed, Android stopped it) resume on
  * their own when the device is nearby again, so the receiver continues where it stopped.
+ * Each send goes into [history]: interrupted until it continues, and not delivered if it
+ * never can.
  */
 class Sending(
     private val context: Context,
     private val engine: Engine,
     private val runner: TransferRunner,
     private val pending: PendingSends,
+    history: TransferHistory,
     private val clock: () -> Long = System::currentTimeMillis
 ) {
+    private val log = TransferLog(history, clock)
+
     /** Transfer IDs running in this process, and when each was last tried. */
     private val running = ConcurrentHashMap.newKeySet<String>()
     private val lastTried = ConcurrentHashMap<String, Long>()
@@ -77,6 +84,7 @@ class Sending(
             val tooOld = now - send.startedAtMillis > TimeUnit.DAYS.toMillis(KEEP_PENDING_DAYS)
             if (tooOld || trusted.none { it.deviceId == send.deviceId }) {
                 forget(send.transferId)
+                log.notDelivered(send.transferId)
                 continue
             }
             val device = nearby.firstOrNull { it.device.deviceId == send.deviceId && it.compatible }
@@ -98,9 +106,18 @@ class Sending(
     private fun start(send: PendingSend, nearby: NearbyDevice, outgoing: OutgoingTransfer?): Long {
         running += send.transferId
         lastTried[send.transferId] = clock()
-        return runner.start(Direction.SENDING, send.title, 0) { progress ->
+        val peer = Peer(nearby.device.deviceId, nearby.device.name)
+        var summary: TransferSummary? = outgoing?.summary()
+        val onEnded = { state: TransferState.Ended, cause: Throwable? ->
+            val outcome = historyOutcome(state, cause)
+            log.ended(Direction.SENDING, send.transferId, peer, send.title, summary, outcome)
+        }
+        return runner.start(Direction.SENDING, send.title, 0, onEnded) { progress ->
             try {
-                val transfer = outgoing ?: prepare(send.kind, send.sources, send.transferId)
+                val transfer = outgoing
+                    ?: prepare(send.kind, send.sources, send.transferId).also {
+                        summary = it.summary()
+                    }
                 val ended = transfer.use { deliver(it, nearby, progress) }
                 forget(send.transferId)
                 ended
