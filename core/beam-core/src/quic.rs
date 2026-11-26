@@ -118,7 +118,7 @@ impl QuicEndpoint {
     }
 }
 
-fn transport_config() -> quinn::TransportConfig {
+pub(crate) fn transport_config() -> quinn::TransportConfig {
     let mut config = quinn::TransportConfig::default();
     config
         .congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()))

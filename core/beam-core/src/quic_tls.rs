@@ -52,7 +52,7 @@ pub(crate) fn client_config() -> Result<rustls::ClientConfig> {
     Ok(config)
 }
 
-fn provider() -> Arc<CryptoProvider> {
+pub(crate) fn provider() -> Arc<CryptoProvider> {
     Arc::new(ring::default_provider())
 }
 
