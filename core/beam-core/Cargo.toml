@@ -24,6 +24,7 @@ native = [
   "dep:time",
   "tokio/net",
   "tokio/rt",
+  "tokio/sync",
   "tokio/time",
 ]
 
