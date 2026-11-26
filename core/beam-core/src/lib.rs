@@ -24,7 +24,9 @@ mod mime;
 pub mod offer;
 pub mod pack;
 pub mod progress;
+#[cfg(feature = "native")]
 pub mod quic;
+#[cfg(feature = "native")]
 mod quic_tls;
 pub mod receiver;
 mod receiver_store;
@@ -39,11 +41,15 @@ mod sender_stream;
 pub mod session;
 pub mod signaling;
 pub mod staging;
+#[cfg(feature = "native")]
 pub mod tcp;
+#[cfg(feature = "native")]
 pub mod transfer;
 pub mod verification;
 pub mod version;
+#[cfg(feature = "native")]
 pub mod webtransport;
+#[cfg(feature = "native")]
 mod webtransport_cert;
 mod wire;
 
@@ -67,6 +73,7 @@ pub use sender_files::{PreparedTransfer, SourceFile, prepare_transfer, prepare_t
 pub use sender_opened::{OpenedFile, prepare_opened, prepare_opened_with_id};
 pub use session::Session;
 pub use signaling::{SignalFrom, SignalMessage, SignalSeal};
+#[cfg(feature = "native")]
 pub use transfer::{
     SendOutcome, confirm_received, read_offer, receive_transfer, receive_transfer_noting,
     reject_offer, send_transfer,

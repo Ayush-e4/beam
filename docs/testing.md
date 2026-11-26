@@ -24,6 +24,10 @@ to `master` unless all checks pass.
   - The 1 GiB scenarios are `#[ignore]`d in debug runs and run in release in the `m1-exit` CI
     job: `cargo test --release --test m1_exit_tcp --test m1_exit_quic -- --ignored`.
 - `clippy` with warnings as errors; `rustfmt` check.
+- **Browser build** (`wasm` CI job): clippy for `wasm32-unknown-unknown` without the `native`
+  feature, and the unit tests without it. Locally the C parts need a clang that targets wasm:
+  Apple's clang doesn't, so point `CC_wasm32_unknown_unknown` and `AR_wasm32_unknown_unknown`
+  at the Android NDK's `clang` and `llvm-ar`.
 
 ### Mac command-line device (`core/beam-cli`)
 

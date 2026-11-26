@@ -41,6 +41,29 @@ jobs:
             --library target/debug/libbeam_ffi.so --language kotlin --out-dir target/kotlin
           test -s target/kotlin/app/beam/core/beam_ffi.kt
 
+  wasm:
+    # The engine without its native transports must keep building for browsers.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+          key: wasm
+      - name: Use clang for the C parts (ring, zstd)
+        run: |
+          echo "CC_wasm32_unknown_unknown=clang" >> "$GITHUB_ENV"
+          echo "AR_wasm32_unknown_unknown=$(command -v llvm-ar || ls /usr/bin/llvm-ar-* | sort -V | tail -1)" >> "$GITHUB_ENV"
+      - name: Clippy for wasm32
+        run: cargo clippy --locked -p beam-core --no-default-features --target wasm32-unknown-unknown -- -D warnings
+      - name: Test without the native transports
+        run: cargo test --locked -p beam-core --no-default-features
+
   m1-exit:
     # Fault-injection transfers of a 1 GiB file over TCP and lossy QUIC, in release mode. The
     # smaller fault scenarios already run in `check`.
