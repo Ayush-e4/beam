@@ -163,6 +163,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "beam-cli"
+version = "0.1.0"
+dependencies = [
+ "beam-ffi",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "beam-core"
 version = "0.1.0"
 dependencies = [

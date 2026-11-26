@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["beam-core", "beam-ffi", "uniffi-bindgen"]
+members = ["beam-cli", "beam-core", "beam-ffi", "uniffi-bindgen"]
 
 [workspace.package]
 edition = "2024"
