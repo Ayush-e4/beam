@@ -78,7 +78,7 @@ impl Phone {
         let key = self.device.identity.public_key();
         let port = self.listener.port();
         outgoing
-            .send_to("127.0.0.1".into(), port, key, CIPHER, Arc::new(Quiet))
+            .send_to("127.0.0.1".into(), port, key, CIPHER, Arc::new(Quiet), None)
             .await
     }
 

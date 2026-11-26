@@ -36,7 +36,7 @@ pub(crate) fn duplicate(files: &[SharedFile]) -> Result<Vec<OpenedFile>, BeamErr
 
 /// A new descriptor for the same open file (`dup`), owned by the engine.
 #[cfg(unix)]
-#[allow(unsafe_code)] // The only unsafe code in Beam; see the SAFETY note.
+#[allow(unsafe_code)] // One of the two unsafe blocks in Beam (see docs/security.md).
 fn duplicate_fd(fd: i32) -> Result<File, String> {
     use std::os::fd::BorrowedFd;
 

@@ -13,6 +13,7 @@ mod gate;
 mod identity;
 mod inbox;
 mod incoming;
+mod network;
 mod outgoing;
 mod pairing;
 mod prepare;

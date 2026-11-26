@@ -115,7 +115,7 @@ impl Setup {
         let port = self.listener.port();
         let key = self.phone.identity.public_key();
         outgoing
-            .send_to("127.0.0.1".into(), port, key, CIPHER, progress)
+            .send_to("127.0.0.1".into(), port, key, CIPHER, progress, None)
             .await
     }
 
@@ -216,6 +216,7 @@ async fn a_device_with_another_key_is_refused() {
             stranger,
             CIPHER,
             Recorder::watching(0),
+            None,
         )
         .await;
     assert!(

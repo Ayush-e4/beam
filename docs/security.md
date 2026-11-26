@@ -100,9 +100,15 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
 
 - Dependency auditing in CI (`cargo audit`, `npm audit`, Gradle dependency checks).
 - Fuzzing for the frame parser, manifest parser and pack format.
-- No `unsafe` Rust (`unsafe_code = "deny"`), with one documented exception: `beam-ffi`
-  duplicates a file descriptor the Android app holds open (`dup`), because shared gallery and
-  picker items can't be reopened by path. The engine never closes or takes over the app's own
-  descriptor.
+- No `unsafe` Rust (`unsafe_code = "deny"`), with two documented exceptions in `beam-ffi`,
+  each in its own file with a SAFETY note:
+  - `shared.rs` duplicates a file descriptor the Android app holds open (`dup`), because shared
+    gallery and picker items can't be reopened by path. The engine never closes or takes over
+    the app's own descriptor.
+  - `network.rs` (Android only) calls the NDK's `android_setsocknetwork` so a connection to a
+    nearby device goes over the Wi-Fi network instead of a VPN that would capture it and can't
+    reach the device. It only sets a socket option on a socket the engine owns; an unknown
+    network fails with an error. Only connections to nearby devices are affected; everything
+    else stays on the VPN, and Beam traffic is end-to-end encrypted either way.
 - Security review before each major release; an external audit is planned before v2.
 - Private disclosure channel for vulnerability reports.

@@ -5,9 +5,10 @@
 
 use std::io;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::{TcpListener, TcpSocket, TcpStream};
 use tokio::time::timeout;
 
 use crate::connection::Connection;
@@ -17,6 +18,10 @@ use crate::{BeamError, Result};
 /// How long an accepted connection has to complete the handshake.
 pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Something done to a socket before it connects, such as sending it over one particular
+/// network instead of the system's default (which may be a VPN).
+pub type PrepareSocket = Arc<dyn Fn(&TcpSocket) -> io::Result<()> + Send + Sync>;
+
 /// Connects to `addr` and runs `handshake` as the initiator.
 ///
 /// # Errors
@@ -24,8 +29,30 @@ pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 /// Returns a network error if the peer is unreachable or connecting and the handshake take
 /// longer than [`HANDSHAKE_TIMEOUT`], and a crypto error if it fails authentication.
 pub async fn connect(addr: SocketAddr, handshake: Handshake) -> Result<Connection<TcpStream>> {
+    connect_prepared(addr, handshake, None).await
+}
+
+/// As [`connect`], running `prepare` on the socket first.
+///
+/// # Errors
+///
+/// As [`connect`], and a network error if `prepare` fails.
+pub async fn connect_prepared(
+    addr: SocketAddr,
+    handshake: Handshake,
+    prepare: Option<PrepareSocket>,
+) -> Result<Connection<TcpStream>> {
     within_handshake_timeout(async {
-        let stream = TcpStream::connect(addr).await.map_err(BeamError::network)?;
+        let socket = if addr.is_ipv4() {
+            TcpSocket::new_v4()
+        } else {
+            TcpSocket::new_v6()
+        }
+        .map_err(BeamError::network)?;
+        if let Some(prepare) = prepare {
+            prepare(&socket).map_err(BeamError::network)?;
+        }
+        let stream = socket.connect(addr).await.map_err(BeamError::network)?;
         stream.set_nodelay(true).map_err(BeamError::network)?;
         Connection::establish(stream, handshake).await
     })

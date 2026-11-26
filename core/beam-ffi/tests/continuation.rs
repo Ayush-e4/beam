@@ -87,6 +87,7 @@ async fn an_accepted_transfer_continues_and_stale_ones_are_removed() {
             phone_identity.public_key(),
             CIPHER,
             watch(0),
+            None,
         )
     };
     let accept = |offer: Arc<IncomingOffer>, progress: Arc<Watch>| {
