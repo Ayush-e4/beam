@@ -2,6 +2,7 @@ package app.beam.core.transfers
 
 import app.beam.core.BeamException
 import app.beam.core.DeclineReason
+import app.beam.core.NetworkFailure
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -69,7 +70,7 @@ class TransferRunnerTest {
     @Test
     fun `engine and storage errors end it as failed with the reason`() {
         val engine = runner.start(Direction.RECEIVING, "a", 1) {
-            throw BeamException.Network("the link dropped")
+            throw BeamException.Network("the link dropped", NetworkFailure.OTHER)
         }
         val storage = runner.start(Direction.RECEIVING, "b", 1) {
             throw IOException("disk full")
@@ -131,7 +132,7 @@ class TransferRunnerTest {
             assertFalse("recorded before it shows as ended", shownEnded)
             heard += state to cause
         }
-        val network = BeamException.Network("gone")
+        val network = BeamException.Network("gone", NetworkFailure.OTHER)
         val failed = runner.start(Direction.SENDING, "x", 1, ::hear) { throw network }
         assertEquals(TransferState.Failed("gone"), ended(failed))
         registry.clearFinished()

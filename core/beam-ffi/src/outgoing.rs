@@ -84,9 +84,7 @@ impl OutgoingTransfer {
                 .await
                 .map_err(beam_core::BeamError::network)?
                 .next()
-                .ok_or_else(|| BeamError::Network {
-                    detail: format!("{host} has no address"),
-                })?;
+                .ok_or_else(|| BeamError::network(format!("{host} has no address")))?;
             let handshake = Handshake::known_initiator(identity.keypair(), cipher.into(), peer)?;
             let watched = sender
                 .lock()

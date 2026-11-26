@@ -25,7 +25,7 @@ mod types;
 
 pub use discovery::recognise_beacon;
 pub use engine::Engine;
-pub use error::BeamError;
+pub use error::{BeamError, NetworkFailure};
 pub use identity::DeviceIdentity;
 pub use incoming::{IncomingOffer, Listener};
 pub use outgoing::OutgoingTransfer;
