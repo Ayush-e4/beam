@@ -4,6 +4,8 @@
 //! grant a permission...). `detail` is the engine's description, meant for logs and bug reports
 //! rather than for showing to people.
 
+use std::io;
+
 use beam_core::ErrorCategory;
 
 /// An engine failure, by category. Kotlin sees it as `BeamException`.
@@ -14,6 +16,8 @@ pub enum BeamError {
     Network {
         /// What went wrong, for logs.
         detail: String,
+        /// How it failed, so the app can tell the person why.
+        failure: NetworkFailure,
     },
     /// Reading or writing local files failed, or the picked files cannot be sent as they are.
     #[error("storage: {detail}")]
@@ -53,11 +57,51 @@ pub enum BeamError {
     },
 }
 
+/// How a connection to another device failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum NetworkFailure {
+    /// Nothing answered: the device isn't on this network, or the network stops devices from
+    /// reaching each other (common on guest, hotel and office Wi-Fi), or a VPN captured it.
+    NoAnswer,
+    /// The device answered but nothing listens there: Beam isn't receiving on it.
+    Refused,
+    /// Anything else, such as a link that dropped partway.
+    Other,
+}
+
+impl NetworkFailure {
+    fn of(kind: io::ErrorKind) -> Self {
+        match kind {
+            io::ErrorKind::TimedOut
+            | io::ErrorKind::HostUnreachable
+            | io::ErrorKind::NetworkUnreachable => Self::NoAnswer,
+            io::ErrorKind::ConnectionRefused => Self::Refused,
+            _ => Self::Other,
+        }
+    }
+}
+
+impl BeamError {
+    /// A network error that isn't an I/O failure, such as an address that can't be used.
+    pub(crate) fn network(detail: impl Into<String>) -> Self {
+        Self::Network {
+            detail: detail.into(),
+            failure: NetworkFailure::Other,
+        }
+    }
+}
+
 impl From<beam_core::BeamError> for BeamError {
     fn from(error: beam_core::BeamError) -> Self {
         let detail = error.to_string();
         match error.category() {
-            ErrorCategory::Network => Self::Network { detail },
+            ErrorCategory::Network => {
+                let failure = match &error {
+                    beam_core::BeamError::Io { source, .. } => NetworkFailure::of(source.kind()),
+                    _ => NetworkFailure::Other,
+                };
+                Self::Network { detail, failure }
+            }
             ErrorCategory::Storage => Self::Storage { detail },
             ErrorCategory::Permission => Self::Permission { detail },
             ErrorCategory::Protocol => Self::Protocol { detail },
@@ -109,6 +153,31 @@ mod tests {
             convert(Core::Cancelled),
             BeamError::Cancelled { .. }
         ));
+    }
+
+    #[test]
+    fn network_errors_say_how_the_connection_failed() {
+        let failure = |kind| match convert(Core::network(io::Error::new(kind, "boom"))) {
+            BeamError::Network { failure, .. } => failure,
+            other => panic!("not a network error: {other:?}"),
+        };
+        assert_eq!(failure(io::ErrorKind::TimedOut), NetworkFailure::NoAnswer);
+        assert_eq!(
+            failure(io::ErrorKind::HostUnreachable),
+            NetworkFailure::NoAnswer
+        );
+        assert_eq!(
+            failure(io::ErrorKind::NetworkUnreachable),
+            NetworkFailure::NoAnswer
+        );
+        assert_eq!(
+            failure(io::ErrorKind::ConnectionRefused),
+            NetworkFailure::Refused
+        );
+        assert_eq!(
+            failure(io::ErrorKind::ConnectionReset),
+            NetworkFailure::Other
+        );
     }
 
     #[test]

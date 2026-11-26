@@ -155,9 +155,7 @@ pub(crate) async fn pair_with(
 ) -> Result<PairedDevice, BeamError> {
     let invite = PairingInvite::decode(&code)?;
     if invite.hints.is_empty() {
-        return Err(BeamError::Network {
-            detail: "this code has no address to connect to".into(),
-        });
+        return Err(BeamError::network("this code has no address to connect to"));
     }
     run(handle, async move {
         let mut conn = connect_first(&local.identity, &invite, network).await?;
@@ -196,9 +194,7 @@ async fn connect_first(
             }
         }
     }
-    Err(last_error.unwrap_or(BeamError::Network {
-        detail: "no address to connect to".into(),
-    }))
+    Err(last_error.unwrap_or_else(|| BeamError::network("no address to connect to")))
 }
 
 async fn introduce(
