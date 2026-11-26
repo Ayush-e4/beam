@@ -10,16 +10,15 @@
 //! The token is single-use and short-lived; the displayer enforces both. The signaling room
 //! is derived from the token, so it costs no space in the code.
 
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::SocketAddr;
 
 use crate::handshake::MIN_PAIRING_TOKEN_LEN;
-use crate::{BeamError, Cipher, PublicKey, Result, TransferId, base32};
+use crate::{BeamError, Cipher, PublicKey, Result, TransferId, base32, hints};
 
 /// Every invite starts with this; it tells a scanner it's a Beam code and which format.
 pub const INVITE_PREFIX: &str = "BEAM1:";
 
-/// Most connection hints an invite carries.
-pub const MAX_HINTS: usize = 4;
+pub use crate::hints::MAX_HINTS;
 
 const VERSION: u8 = 1;
 const TOKEN_LEN: usize = MIN_PAIRING_TOKEN_LEN;
@@ -46,7 +45,7 @@ impl PairingInvite {
     /// [`BeamError::Malformed`] for more than [`MAX_HINTS`] hints or a hint with port 0, and
     /// [`BeamError::Handshake`] if the random number generator fails.
     pub fn new(displayer: PublicKey, cipher: Cipher, hints: Vec<SocketAddr>) -> Result<Self> {
-        check_hints(&hints)?;
+        hints::check(&hints)?;
         Ok(Self {
             token: TransferId::random()?.0,
             displayer,
@@ -62,7 +61,7 @@ impl PairingInvite {
     ///
     /// [`BeamError::Malformed`] for more than [`MAX_HINTS`] hints or a hint with port 0.
     pub fn with_hints(&self, hints: Vec<SocketAddr>) -> Result<Self> {
-        check_hints(&hints)?;
+        hints::check(&hints)?;
         Ok(Self {
             hints,
             ..self.clone()
@@ -85,20 +84,7 @@ impl PairingInvite {
         bytes.extend_from_slice(&self.token);
         bytes.extend_from_slice(self.displayer.as_bytes());
         // At most MAX_HINTS: `new` and `decode` refuse more, and the fields are only read here.
-        bytes.push(u8::try_from(self.hints.len().min(MAX_HINTS)).unwrap_or(0));
-        for hint in self.hints.iter().take(MAX_HINTS) {
-            match hint.ip() {
-                IpAddr::V4(ip) => {
-                    bytes.push(4);
-                    bytes.extend_from_slice(&ip.octets());
-                }
-                IpAddr::V6(ip) => {
-                    bytes.push(6);
-                    bytes.extend_from_slice(&ip.octets());
-                }
-            }
-            bytes.extend_from_slice(&hint.port().to_be_bytes());
-        }
+        hints::encode(&self.hints, &mut bytes);
         format!("{INVITE_PREFIX}{}", base32::encode(&bytes))
     }
 
@@ -125,23 +111,10 @@ impl PairingInvite {
         };
         let token = reader.array()?;
         let displayer = PublicKey::from_bytes(reader.array()?);
-        let count = usize::from(reader.byte()?);
-        if count > MAX_HINTS {
-            return Err(malformed("too many connection hints"));
-        }
-        let mut hints = Vec::with_capacity(count);
-        for _ in 0..count {
-            let ip = match reader.byte()? {
-                4 => IpAddr::V4(Ipv4Addr::from(reader.array::<4>()?)),
-                6 => IpAddr::V6(Ipv6Addr::from(reader.array::<16>()?)),
-                _ => return Err(malformed("unknown address family")),
-            };
-            hints.push(SocketAddr::new(ip, u16::from_be_bytes(reader.array()?)));
-        }
-        if !reader.0.is_empty() {
+        let (hints, rest) = hints::decode(reader.0)?;
+        if !rest.is_empty() {
             return Err(malformed("trailing bytes in pairing code"));
         }
-        check_hints(&hints)?;
         Ok(Self {
             token,
             displayer,
@@ -156,16 +129,6 @@ const fn cipher_code(cipher: Cipher) -> u8 {
         Cipher::AesGcm => 0,
         Cipher::ChaChaPoly => 1,
     }
-}
-
-fn check_hints(hints: &[SocketAddr]) -> Result<()> {
-    if hints.len() > MAX_HINTS {
-        return Err(malformed("too many connection hints"));
-    }
-    if hints.iter().any(|hint| hint.port() == 0) {
-        return Err(malformed("connection hint without a port"));
-    }
-    Ok(())
 }
 
 fn malformed(why: &str) -> BeamError {

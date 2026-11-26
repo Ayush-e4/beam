@@ -34,6 +34,7 @@ jobs:
           - transfer_messages
           - pairing_invite
           - beacon
+          - signal_message
     defaults:
       run:
         working-directory: core/fuzz
