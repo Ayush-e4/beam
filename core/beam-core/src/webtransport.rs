@@ -26,7 +26,7 @@ use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
 use crate::webtransport_setup::open_session;
-use crate::{BeamError, Result, quic, quic_tls, webtransport_cert};
+use crate::{BeamError, Result, quic, quic_tls, udp_socket, webtransport_cert};
 
 /// Where a browser opens its WebTransport session.
 pub const PATH: &str = "/beam";
@@ -71,7 +71,7 @@ impl WebTransportServer {
         let tls = QuicServerConfig::try_from(tls).map_err(|err| setup(&err))?;
         let mut server = ServerConfig::with_crypto(Arc::new(tls));
         server.transport_config(Arc::new(quic::transport_config()));
-        let endpoint = Endpoint::server(server, addr).map_err(BeamError::network)?;
+        let endpoint = udp_socket::endpoint(server, addr).map_err(BeamError::network)?;
         let (ready_tx, ready_rx) = mpsc::channel(READY_QUEUE);
         let accepting = tokio::spawn(accept_loop(endpoint.clone(), ready_tx));
         Ok(Self {

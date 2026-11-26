@@ -50,6 +50,8 @@ pub mod tcp;
 #[cfg(any(feature = "native", target_family = "wasm"))]
 pub mod transfer;
 pub mod transfer_staging;
+#[cfg(feature = "native")]
+mod udp_socket;
 pub mod verification;
 pub mod version;
 #[cfg(feature = "native")]
