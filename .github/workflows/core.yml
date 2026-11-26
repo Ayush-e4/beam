@@ -63,6 +63,8 @@ jobs:
           echo "AR_wasm32_unknown_unknown=$(command -v llvm-ar || ls /usr/bin/llvm-ar-* | sort -V | tail -1)" >> "$GITHUB_ENV"
       - name: Clippy for wasm32
         run: cargo clippy --locked -p beam-core --no-default-features --target wasm32-unknown-unknown -- -D warnings
+      - name: Clippy (beam-web for browsers, with its browser tests)
+        run: cargo clippy --locked -p beam-web --target wasm32-unknown-unknown --all-targets -- -D warnings
       - name: Test without the native transports
         run: cargo test --locked -p beam-core --no-default-features
 

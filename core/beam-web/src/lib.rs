@@ -8,6 +8,7 @@ mod errors;
 mod js_stream;
 pub mod opfs_file;
 pub mod opfs_staging;
+mod receiving;
 
 use beam_core::{
     Cipher, Connection, Frame, FrameType, Handshake, PairingInvite, PublicKey, Role, StaticKeypair,
@@ -198,7 +199,7 @@ impl ReceivedFrame {
 /// An authenticated, encrypted connection to the phone.
 #[wasm_bindgen]
 pub struct BeamConnection {
-    connection: Connection<JsStream>,
+    pub(crate) connection: Connection<JsStream>,
 }
 
 #[wasm_bindgen]

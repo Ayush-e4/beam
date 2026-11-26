@@ -78,6 +78,17 @@ which runs the Noise handshake and encrypted session over a WebTransport bidirec
 `js_stream.rs` adapts the stream's `readable`/`writable` into tokio's byte-stream traits, so the
 engine code is unchanged. Errors are `Error`s named `BeamError` with a `category`.
 
+Receiving (`receiving.rs`) runs in the web app's dedicated worker, which opens the
+WebTransport session itself:
+
+- `connection.readOffer()` returns a `BeamOffer` (files, sizes, `transferId`) for the page to
+  show; `connection.decline(offer)` refuses it.
+- `connection.receive(offer, opfsRoot, onProgress)` accepts and receives into OPFS, resuming an
+  interrupted transfer, and reports `(done, total)` bytes as data arrives (at most every
+  100 ms).
+- It returns a `ReceivedTransfer`. `files()` gives a `File` per item (a slice of the staged
+  data, named like the file). `remove()` deletes the staging once the page has saved them.
+
 Received files are staged in OPFS (`opfs_staging.rs`) from the web app's dedicated worker. OPFS
 reads and writes are synchronous there, but opening and removing files are not, so each
 transfer's three files are opened up front in `beam-receiving/<transfer>-<owner>/`:

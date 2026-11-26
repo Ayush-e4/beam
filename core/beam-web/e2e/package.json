@@ -6,6 +6,7 @@
   "description": "Runs the WebAssembly engine in headless Chromium against a native peer, and beam-web's browser-only tests. Start it with tools/web-engine-test.sh.",
   "scripts": {
     "e2e": "node handshake.e2e.mjs",
+    "receive": "node receive.e2e.mjs",
     "wasm-tests": "node wasm-tests.e2e.mjs",
     "lint": "eslint . --max-warnings 0"
   },
