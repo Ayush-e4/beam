@@ -109,6 +109,24 @@ can't bounce a device's own offer back to it.
 - **Signaling:** trusted devices can meet in a room derived from their shared secret.
 - **Direct Wi-Fi:** Wi-Fi Aware publish/subscribe with the same service name.
 
+## Signaling rooms
+
+The signaling service (`signal/`) lets two devices that can't reach each other directly yet
+(usually a browser and a phone) swap connection details. It only relays them: what devices
+send is sealed with a key the server doesn't have, so it can't read, change or forge it.
+
+- **Joining:** a WebSocket to `GET /rooms/{room}`, where `room` is the 16-byte room name as 32
+  lowercase hex characters (for pairing, the `signaling_room` derived from the pairing token).
+  Anything else is refused with HTTP 400 (`bad_room`); a plain HTTP request gets 426.
+- **Messages:** devices send binary frames only. The room passes each one, unchanged, to the
+  other device, or keeps it (up to 8) for the next device to join. The room's own notices are
+  JSON text frames: `{"type":"joined","peers":n}` on joining (`n` already there),
+  `peer-joined`, `peer-left`, and `buffer-full` when a message couldn't be kept.
+- **Limits:** two devices per room, 16 KiB per message, 64 messages per device. A room closes
+  10 minutes after its first device joins.
+- **Close codes:** 4001 room full, 4002 room expired, 4003 too many messages, 4004 message
+  too big, 4005 text sent (messages must be binary).
+
 ## Session layer
 
 After the handshake, all messages are framed and encrypted with session keys:
