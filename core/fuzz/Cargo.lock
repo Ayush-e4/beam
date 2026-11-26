@@ -101,6 +101,7 @@ dependencies = [
  "blake3",
  "quinn",
  "rcgen",
+ "ring",
  "rustls",
  "snow",
  "thiserror",

@@ -13,6 +13,7 @@ pub mod error;
 pub mod frame;
 pub mod handshake;
 pub mod hello;
+mod hints;
 pub mod integrity;
 pub mod invite;
 pub mod journal;
@@ -36,6 +37,7 @@ mod sender_pack;
 mod sender_source;
 mod sender_stream;
 pub mod session;
+pub mod signaling;
 pub mod staging;
 pub mod tcp;
 pub mod transfer;
@@ -62,6 +64,7 @@ pub use sender::Sender;
 pub use sender_files::{PreparedTransfer, SourceFile, prepare_transfer, prepare_transfer_with_id};
 pub use sender_opened::{OpenedFile, prepare_opened, prepare_opened_with_id};
 pub use session::Session;
+pub use signaling::{SignalFrom, SignalMessage, SignalSeal};
 pub use transfer::{
     SendOutcome, confirm_received, read_offer, receive_transfer, receive_transfer_noting,
     reject_offer, send_transfer,

@@ -72,6 +72,21 @@ own camera app opens Beam, can follow once the public name and domain are chosen
    (optional confirmation for high-trust pairing).
 5. Each side stores the other as a trusted device.
 
+**Sealed signaling messages.** What the two devices pass each other through the signaling
+room is sealed with ChaCha20-Poly1305 under
+`BLAKE3-derive_key("beam 2026-11-26 signaling seal v1", pairing_token)`, so the server can
+neither read nor forge it:
+
+```
+sealed  = version u8 (1) | nonce [12] (random) | ciphertext and tag
+aad     = "beam signal v1" | version u8 | from u8 (0 displayer, 1 scanner)
+message = type u8 | body
+  1 offer: hints (as in the invite) | WebTransport certificate SHA-256 [32]
+```
+
+`from` is bound in, so a message opens only as coming from the side that sealed it; the server
+can't bounce a device's own offer back to it.
+
 ## Discovery (trusted devices)
 
 - **LAN:** mDNS service `_beam._tcp`. The instance name is a **beacon**, never the device ID or

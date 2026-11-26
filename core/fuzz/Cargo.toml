@@ -93,3 +93,10 @@ path = "fuzz_targets/beacon.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "signal_message"
+path = "fuzz_targets/signal_message.rs"
+test = false
+doc = false
+bench = false
