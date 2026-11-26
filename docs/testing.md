@@ -64,7 +64,9 @@ tell Beam's speed from the network's, compare with raw TCP (`nc`) between the sa
   pairing returned.
 - **Instrumented tests** for code that needs the real platform, run on a connected phone with
   `./gradlew :core:connectedDebugAndroidTest`: the Android Keystore key wrapper and the
-  identity store on top of it, and a 64 MiB loopback transfer between two engines.
+  identity store on top of it, a 64 MiB loopback transfer between two engines, and the
+  phone's own hotspot (it opens, gives its name, password and Wi-Fi QR text, and a transfer
+  to the phone's address on it arrives).
 - **Compose UI tests** for each screen and key flows (pairing, send, receive, history).
 - **Instrumented tests** on emulators for services, permissions and storage.
 - **Real-device test matrix** (manual and scripted over adb): Samsung, Pixel, Xiaomi, OnePlus,

@@ -75,6 +75,11 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
   change. Only trusted devices can link it to the device (see `protocol.md`, Discovery);
   it never contains the device ID or the user's name.
 - Logs contain no file names or contents; crash reports are opt-in.
+- The phone hotspot (Android's local-only hotspot) shares no internet. Android picks its name
+  and a fresh random password every time it opens, and it closes when Beam no longer needs
+  it. Opening one needs "nearby Wi-Fi devices" on Android 13+ (declared `neverForLocation`).
+  Android 8–12 only allow it with precise location, so Beam asks for location on those
+  versions, for the hotspot only, and never reads a location.
 - Play Store data-safety labels must accurately describe this behaviour.
 
 ## Abuse
