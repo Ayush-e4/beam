@@ -23,13 +23,36 @@ benchmarks (see `testing.md`); anything that doesn't measurably help is removed.
 
 ## 2. Transport
 
-- **QUIC** (`quinn`) with **BBR** congestion control, large flow-control windows and large
-  socket buffers.
+- **QUIC** (`quinn`) with **Cubic** congestion control, large flow-control windows and large
+  socket buffers (8 MiB asked for each way; systems may grant less).
 - **UDP batching:** GSO/GRO and `sendmmsg`/`recvmmsg` to cut syscalls per packet.
 - **Path MTU discovery** to use the largest packets the path allows.
 - **TCP alternative:** kernel TCP can beat userspace QUIC on phone CPUs at gigabit speeds.
   Both are implemented and the faster one is chosen per link type from benchmark data.
 - **Parallel streams** to keep the pipe full and hide per-stream stalls.
+
+### Congestion control
+
+Measured on a Galaxy S21 FE and a Mac on shared office Wi-Fi (RTT about 18 ms idle), 64 MiB
+per run, runs alternated because the network's own speed swings by 2x within minutes
+(2026-11-26):
+
+| Phone sending to the browser | Speed         | RTT under load | Packets lost |
+| ---------------------------- | ------------- | -------------- | ------------ |
+| quinn BBR                    | 2.1–3.4 MiB/s | 164–375 ms     | 15–48%       |
+| quinn Cubic                  | 2.0–4.0 MiB/s | 30–45 ms       | under 0.2%   |
+| raw TCP, same minutes        | 3.0–5.4 MiB/s |                |              |
+
+quinn's BBR ignores loss: it kept sending at two to three times what the link carried, the
+queue in front of it grew to hundreds of milliseconds and up to half its packets were dropped
+(native runs counted packets at both ends: real loss, not reordering). Cubic is quinn's
+default and its most tested controller; it is as fast or faster, keeps latency low and doesn't
+flood a network other people share. Android's default UDP receive buffer (about 320 KiB) also
+overflowed under load, hundreds of drops per 64 MiB; 8 MiB buffers removed them.
+
+Still open: the browser sending to the phone reaches about a third of raw TCP (1.2–2.1 MiB/s
+against 4.7–5.7). Chromium's QUIC runs that sender, so the phone only sees its retransmissions,
+not why it slows down.
 
 ## 3. CPU
 

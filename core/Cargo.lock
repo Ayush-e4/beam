@@ -189,6 +189,7 @@ dependencies = [
  "ring",
  "rustls",
  "snow",
+ "socket2",
  "tempfile",
  "thiserror",
  "time",

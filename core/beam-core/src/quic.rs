@@ -2,8 +2,8 @@
 //!
 //! One [`QuicEndpoint`] both accepts and opens connections on a single UDP socket. Each Beam
 //! connection uses one bidirectional QUIC stream carrying the Noise handshake and the encrypted
-//! session, exactly like TCP. Congestion control is BBR with large flow-control windows, per
-//! `docs/performance.md`.
+//! session, exactly like TCP. Congestion control is Cubic, with large flow-control windows and
+//! socket buffers, per `docs/performance.md`.
 //!
 //! [`Connection::close`] finishes our side of the stream; keep the connection alive until the
 //! peer has read everything (for example until its own `recv` returns `None`), since dropping
@@ -21,6 +21,7 @@ use tokio::io::Join;
 use crate::connection::Connection;
 use crate::handshake::Handshake;
 use crate::quic_tls::{self, SERVER_NAME};
+use crate::udp_socket;
 use crate::{BeamError, Result};
 
 /// The byte stream a QUIC [`Connection`] runs over.
@@ -55,7 +56,7 @@ impl QuicEndpoint {
         let mut client = ClientConfig::new(Arc::new(client_tls));
         client.transport_config(transport);
 
-        let mut endpoint = Endpoint::server(server, addr).map_err(BeamError::network)?;
+        let mut endpoint = udp_socket::endpoint(server, addr).map_err(BeamError::network)?;
         endpoint.set_default_client_config(client);
         Ok(Self { endpoint })
     }
@@ -121,7 +122,9 @@ impl QuicEndpoint {
 pub(crate) fn transport_config() -> quinn::TransportConfig {
     let mut config = quinn::TransportConfig::default();
     config
-        .congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()))
+        // Not BBR: on Wi-Fi, quinn's BBR kept sending at two to three times what the link
+        // carried and up to half its packets were dropped (docs/performance.md).
+        .congestion_controller_factory(Arc::new(quinn::congestion::CubicConfig::default()))
         .stream_receive_window(VarInt::from_u32(STREAM_WINDOW))
         .receive_window(VarInt::from_u32(CONNECTION_WINDOW))
         .send_window(u64::from(CONNECTION_WINDOW))
