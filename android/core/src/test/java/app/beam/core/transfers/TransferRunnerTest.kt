@@ -145,6 +145,17 @@ class TransferRunnerTest {
     }
 
     @Test
+    fun `an unreachable device fails with its problem`() {
+        val id = runner.start(Direction.SENDING, "x", 1) {
+            throw DeviceUnreachable(
+                Problem.VPN_BLOCKS,
+                BeamException.Network("timed out", NetworkFailure.NO_ANSWER)
+            )
+        }
+        assertEquals(TransferState.Failed("timed out", Problem.VPN_BLOCKS), ended(id))
+    }
+
+    @Test
     fun `clearing forgets ended transfers only`() = runBlocking {
         val done = runner.start(Direction.SENDING, "a", 1) { TransferState.Done }
         ended(done)

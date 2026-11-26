@@ -28,7 +28,7 @@ internal fun historyOutcome(state: TransferState.Ended, cause: Throwable?): Pair
                 Outcome.INTERRUPTED to null
             }
         is TransferState.Failed ->
-            if (cause is BeamException.Network) {
+            if (cause is BeamException.Network || cause is DeviceUnreachable) {
                 Outcome.INTERRUPTED to state.reason
             } else {
                 Outcome.FAILED to state.reason

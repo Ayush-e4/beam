@@ -47,6 +47,15 @@ class TransferLogTest {
             historyOutcome(failed, BeamException.Storage("gone"))
         )
         assertEquals(Outcome.FAILED to "gone", historyOutcome(failed, IOException("gone")))
+        val unreachable = DeviceUnreachable(
+            Problem.NETWORK_BLOCKS_DEVICES,
+            BeamException.Network("gone", NetworkFailure.NO_ANSWER)
+        )
+        assertEquals(
+            "kept and resumed later",
+            Outcome.INTERRUPTED to "gone",
+            historyOutcome(failed, unreachable)
+        )
     }
 
     @Test

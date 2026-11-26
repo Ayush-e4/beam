@@ -157,30 +157,29 @@ class SendingOnDeviceTest {
     }
 
     @Test
-    fun aSendAVpnBlocksSaysSoAndWaitsToResume() = runBlocking {
-        val closedPort = java.net.ServerSocket(0).use { it.localPort }
-        val unreachable =
-            NearbyDevice(device, listOf(InetAddress.getByName("127.0.0.1")), closedPort, true)
+    fun anUnreachableDeviceSaysWhyAndWaitsToResume() = runBlocking {
+        val closed = java.net.ServerSocket(0).use { it.localPort }
+        assertEquals(
+            "a refusal means the device is there",
+            Problem.NOT_RECEIVING,
+            problem("127.0.0.1", closed)
+        )
+        assertEquals(1, PendingSends(pendingFile).all().size)
+        assertEquals("192.0.2.1 never answers", Problem.VPN_BLOCKS, problem("192.0.2.1", 9))
+        assertEquals("both kept, to resume", 2, PendingSends(pendingFile).all().size)
+    }
+
+    /** How a send to [host] ends while a VPN is on. */
+    private suspend fun problem(host: String, port: Int): Problem? {
         val behindVpn = object : NetworkFinder {
             override fun networkFor(address: InetAddress): Long? = null
             override val behindVpn = true
         }
-        val sending = Sending(
-            context,
-            laptopEngine,
-            runner,
-            PendingSends(pendingFile),
-            sentHistory,
-            behindVpn
-        )
-        val id = sending.send(unreachable, SourceKind.PATHS, listOf(source(ByteArray(16)).path))
-        val state = ended(id)
-        assertTrue("$state", state is TransferState.Failed)
-        assertTrue(
-            (state as TransferState.Failed).reason,
-            state.reason.startsWith("A VPN on this phone is blocking Phone")
-        )
-        assertEquals("kept, to resume", 1, PendingSends(pendingFile).all().size)
+        val pending = PendingSends(pendingFile)
+        val sending = Sending(context, laptopEngine, runner, pending, sentHistory, behindVpn)
+        val nearby = NearbyDevice(device, listOf(InetAddress.getByName(host)), port, true)
+        val id = sending.send(nearby, SourceKind.PATHS, listOf(source(ByteArray(16)).path))
+        return (ended(id) as? TransferState.Failed)?.problem
     }
 
     @Test
