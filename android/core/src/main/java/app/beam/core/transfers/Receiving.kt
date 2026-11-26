@@ -12,6 +12,9 @@ import app.beam.core.TrustedKeys
 import app.beam.core.files.Inbox
 import app.beam.core.files.acceptIntoInbox
 import app.beam.core.files.continuesInInbox
+import app.beam.core.history.Outcome
+import app.beam.core.history.TransferHistory
+import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,15 +35,23 @@ class PendingOffer internal constructor(val id: Long, internal val offer: Incomi
 /**
  * Receives while the app is open. [run] listens; transfers the person already accepted, cut
  * off earlier, continue without asking; every other offer waits in [offers] for [accept] or
- * [decline]. Accepted transfers run through [runner] into Download/Beam.
+ * [decline]. Accepted transfers run through [runner] into Download/Beam. Received transfers
+ * are listed in [finishedList], so a sender that asks again after a restart (it missed the
+ * last word) is told they arrived instead of the person being asked twice. Each transfer, and
+ * each offer the person declines, goes into [history]; [deviceName] names trusted senders by
+ * their public key.
  */
 class Receiving(
     private val context: Context,
     private val engine: Engine,
     private val trusted: TrustedKeys,
     private val runner: TransferRunner,
-    private val cipher: SessionCipher
+    private val cipher: SessionCipher,
+    history: TransferHistory,
+    private val deviceName: (publicKey: ByteArray) -> String? = { null },
+    private val finishedList: File = File(context.noBackupFilesDir, FINISHED_FILE)
 ) {
+    private val log = TransferLog(history)
     private val waiting = MutableStateFlow<List<PendingOffer>>(emptyList())
     private val listeningOn = MutableStateFlow<Int?>(null)
     private val nextId = AtomicLong(1)
@@ -58,6 +69,7 @@ class Receiving(
      * @throws BeamException.Network if the port can't be opened.
      */
     suspend fun run(port: UShort = 0u) {
+        rememberFinished()
         removeStale()
         engine.listen(port, cipher, trusted).use { listener ->
             listeningOn.value = listener.port().toInt()
@@ -80,7 +92,20 @@ class Receiving(
     /** Tells the sender of waiting offer [id] no. Returns false if it is no longer waiting. */
     suspend fun decline(id: Long, reason: DeclineReason = DeclineReason.USER_DECLINED): Boolean {
         val pending = take(id) ?: return false
+        val peer = peerOf(pending.offer)
         answer(pending.offer, reason)
+        if (reason == DeclineReason.USER_DECLINED) {
+            val summary = pending.summary
+            val outcome = Outcome.DECLINED to reason.name
+            log.ended(
+                Direction.RECEIVING,
+                summary.transferId,
+                peer,
+                summary.title(context),
+                summary,
+                outcome
+            )
+        }
         return true
     }
 
@@ -100,15 +125,34 @@ class Receiving(
 
     private fun receive(offer: IncomingOffer, selection: List<UInt>): Long {
         val summary = offer.summary()
+        val title = summary.title(context)
+        val peer = peerOf(offer)
+        var saved = emptyList<String>()
         return runner.start(
             Direction.RECEIVING,
-            summary.title(context),
-            summary.totalBytes.toLong()
+            title,
+            summary.totalBytes.toLong(),
+            onEnded = { state, cause ->
+                val outcome = historyOutcome(state, cause)
+                log.ended(
+                    Direction.RECEIVING,
+                    summary.transferId,
+                    peer,
+                    title,
+                    summary,
+                    outcome,
+                    selection,
+                    saved
+                )
+            }
         ) { progress ->
-            offer.use { it.acceptIntoInbox(context, progress, selection) }
+            saved = offer.use { it.acceptIntoInbox(context, progress, selection) }
             TransferState.Done
         }
     }
+
+    private fun peerOf(offer: IncomingOffer) =
+        Peer(offer.peerDeviceId(), deviceName(offer.peerPublicKey()))
 
     private fun take(id: Long): PendingOffer? {
         val before = waiting.getAndUpdate { all -> all.filterNot { it.id == id } }
@@ -130,6 +174,28 @@ class Receiving(
         }
     }
 
+    /**
+     * Keeps the engine's list of received transfers in [finishedList]. A damaged list is
+     * dropped and started again: at worst the person is asked once more about a transfer
+     * that already arrived.
+     */
+    private suspend fun rememberFinished() {
+        try {
+            engine.rememberFinishedIn(finishedList.path)
+        } catch (e: BeamException.Storage) {
+            Log.w(TAG, "starting a new list of received transfers: ${e.reason()}")
+            try {
+                if (finishedList.exists() && !finishedList.delete()) {
+                    Log.e(TAG, "could not remove the damaged list")
+                    return
+                }
+                engine.rememberFinishedIn(finishedList.path)
+            } catch (again: BeamException) {
+                Log.e(TAG, "received transfers are remembered until Beam closes: ${again.reason()}")
+            }
+        }
+    }
+
     private suspend fun removeStale() {
         try {
             Inbox.removeStale(engine, context)
@@ -141,5 +207,6 @@ class Receiving(
     private companion object {
         const val TAG = "BeamReceiving"
         const val ANSWER_WAIT_MS = 5_000L
+        const val FINISHED_FILE = "finished-transfers.bin"
     }
 }

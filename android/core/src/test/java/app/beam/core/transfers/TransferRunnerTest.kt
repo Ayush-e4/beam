@@ -124,6 +124,26 @@ class TransferRunnerTest {
     }
 
     @Test
+    fun `onEnded hears the ending and its cause before the registry shows it`() = runBlocking {
+        val heard = java.util.concurrent.ConcurrentLinkedQueue<Pair<TransferState, Throwable?>>()
+        fun hear(state: TransferState.Ended, cause: Throwable?) {
+            val shownEnded = registry.transfers.value.any { !it.isRunning && it.title == "x" }
+            assertFalse("recorded before it shows as ended", shownEnded)
+            heard += state to cause
+        }
+        val network = BeamException.Network("gone")
+        val failed = runner.start(Direction.SENDING, "x", 1, ::hear) { throw network }
+        assertEquals(TransferState.Failed("gone"), ended(failed))
+        registry.clearFinished()
+        val done = runner.start(Direction.SENDING, "x", 1, ::hear) { TransferState.Done }
+        assertEquals(TransferState.Done, ended(done))
+        assertEquals(
+            listOf(TransferState.Failed("gone") to network, TransferState.Done to null),
+            heard.toList()
+        )
+    }
+
+    @Test
     fun `clearing forgets ended transfers only`() = runBlocking {
         val done = runner.start(Direction.SENDING, "a", 1) { TransferState.Done }
         ended(done)
