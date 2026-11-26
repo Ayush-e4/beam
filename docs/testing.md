@@ -29,6 +29,16 @@ to `master` unless all checks pass.
   Apple's clang doesn't, so point `CC_wasm32_unknown_unknown` and `AR_wasm32_unknown_unknown`
   at the Android NDK's `clang` and `llvm-ar`.
 
+### Browser engine (`core/beam-web`)
+
+`tools/web-engine-test.sh` (CI job `web-engine`) builds the WebAssembly engine and a native peer
+that plays the phone (`beam-core/examples/webtransport_peer.rs`), then runs
+`core/beam-web/e2e/handshake.e2e.mjs` in headless Chromium: the browser shows an invite, the
+peer "scans" it and serves WebTransport, both pair and must show the same verification code,
+1 MiB of random frames is echoed through the encrypted session, and a browser holding the
+wrong invite must be refused (`crypto`) without the peer ever reporting a pairing. Locally,
+`CHROMIUM_PATH` can point at any Chromium; `wasm-bindgen-cli` must match `core/Cargo.lock`.
+
 ### Mac command-line device (`core/beam-cli`)
 
 A second Beam device for when there's no second phone: `beam` pairs, sends and receives with

@@ -24,6 +24,7 @@ native = [
   "dep:time",
   "tokio/net",
   "tokio/rt",
+  "tokio/sync",
   "tokio/time",
 ]
 
@@ -83,4 +84,8 @@ required-features = ["native"]
 
 [[example]]
 name = "webtransport_echo"
+required-features = ["native"]
+
+[[example]]
+name = "webtransport_peer"
 required-features = ["native"]

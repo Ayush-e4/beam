@@ -62,6 +62,15 @@ Shared engine, compiled for Android, the browser (WebAssembly) and later desktop
   protocol, crypto, cancelled), so the app picks a message and an action without parsing
   strings. `core/uniffi-bindgen` pins the generator to the same UniFFI version.
 
+### beam-web (`core/beam-web`, Rust → WebAssembly)
+
+beam-core without `native`, wrapped with `wasm-bindgen` for the web app: `Identity` (the
+browser's key pair, saved in IndexedDB by the app), `Invite` (the QR text and signaling room),
+`BeamHandshake` (pairing or known device; the browser always initiates) and `BeamConnection`,
+which runs the Noise handshake and encrypted session over a WebTransport bidirectional stream.
+`js_stream.rs` adapts the stream's `readable`/`writable` into tokio's byte-stream traits, so the
+engine code is unchanged. Errors are `Error`s named `BeamError` with a `category`.
+
 ### WebRTC peer (Android)
 
 Google's libwebrtc for browsers that lack WebTransport. Data channels carry the same framed

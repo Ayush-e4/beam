@@ -52,6 +52,8 @@ pub mod version;
 pub mod webtransport;
 #[cfg(feature = "native")]
 mod webtransport_cert;
+#[cfg(feature = "native")]
+mod webtransport_setup;
 mod wire;
 
 pub use chunk_set::ChunkSet;
