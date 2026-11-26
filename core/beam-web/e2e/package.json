@@ -8,6 +8,7 @@
     "e2e": "node handshake.e2e.mjs",
     "receive": "node receive.e2e.mjs",
     "send": "node send.e2e.mjs",
+    "phone-pairing": "node phone-pairing.e2e.mjs",
     "wasm-tests": "node wasm-tests.e2e.mjs",
     "lint": "eslint . --max-warnings 0"
   },

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Builds the WebAssembly engine and the native test peer, then pairs them in headless Chromium
+# Builds the WebAssembly engine and the native test peers, then pairs them in headless Chromium
 # (core/beam-web/e2e/handshake.e2e.mjs), the peer sends files into the engine's worker
-# (receive.e2e.mjs) and receives files picked in the page (send.e2e.mjs). Then runs beam-web's browser-only Rust tests
-# (core/beam-web/tests, such as OPFS staging in a dedicated worker) in the same Chromium.
+# (receive.e2e.mjs) and receives files picked in the page (send.e2e.mjs), and the phone app's
+# engine pairs with the browser (phone-pairing.e2e.mjs). Then runs beam-web's browser-only Rust
+# tests (core/beam-web/tests, such as OPFS staging in a dedicated worker) in the same Chromium.
 #
 # Needs: the wasm32-unknown-unknown target (rust-toolchain.toml), wasm-bindgen-cli at the same
 # version as the wasm-bindgen crate in core/Cargo.lock, a clang that targets wasm
@@ -25,6 +26,7 @@ if [ "$wanted" != "$have" ]; then
 fi
 
 cargo build --locked -p beam-core --example webtransport_peer
+cargo build --locked -p beam-ffi --example browser_pairing_peer
 cargo build --locked -p beam-web --target wasm32-unknown-unknown --release
 wasm-bindgen --target web --out-dir "$target/beam-web-pkg" \
   "$target/wasm32-unknown-unknown/release/beam_web.wasm"
@@ -35,6 +37,8 @@ node "$root/core/beam-web/e2e/receive.e2e.mjs" \
   "$target/beam-web-pkg" "$target/debug/examples/webtransport_peer"
 node "$root/core/beam-web/e2e/send.e2e.mjs" \
   "$target/beam-web-pkg" "$target/debug/examples/webtransport_peer"
+node "$root/core/beam-web/e2e/phone-pairing.e2e.mjs" \
+  "$target/beam-web-pkg" "$target/debug/examples/browser_pairing_peer"
 
 # Integration tests only: the unit tests are host tests that `cargo test` already runs.
 browser_tests=$(cargo test --locked -p beam-web --target wasm32-unknown-unknown --no-run \

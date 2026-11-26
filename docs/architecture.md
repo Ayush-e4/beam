@@ -68,6 +68,11 @@ Shared engine, compiled for Android, the browser (WebAssembly) and later desktop
   `BeamException` with one subclass per error category (network, storage, permission,
   protocol, crypto, cancelled), so the app picks a message and an action without parsing
   strings. `core/uniffi-bindgen` pins the generator to the same UniFFI version.
+- Pairing with a browser (`beam-ffi/src/browser_pairing.rs`): `Engine.pairWithBrowser(code)`
+  serves WebTransport on a free port and returns a `BrowserPairing`. Its `offer(addresses)` is
+  the sealed offer to post in its `room`, and `waitForBrowser(name)` returns the
+  `PairedDevice` once the browser showing the code connects and pairs. Browsers holding another
+  code are ignored. The paired connection stays open until `stop()` or the object is closed.
 
 ### beam-web (`core/beam-web`, Rust → WebAssembly)
 

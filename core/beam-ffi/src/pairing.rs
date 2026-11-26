@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use beam_core::tcp::{self, TcpAcceptor};
 use beam_core::{Connection, DiscoveryKey, Handshake, Hello, PairingInvite, Role, exchange_hello};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::runtime::Handle;
 use tokio::task::JoinSet;
@@ -93,16 +94,7 @@ impl PairingHost {
     ///
     /// [`BeamError::Protocol`] if an address can't be parsed.
     pub fn code(&self, addresses: Vec<String>) -> Result<String, BeamError> {
-        let port = self.port()?;
-        let mut hints = Vec::new();
-        for address in addresses {
-            let ip: IpAddr = address.parse().map_err(|_| BeamError::Protocol {
-                detail: format!("{address} is not an IP address"),
-            })?;
-            if !is_link_local_v6(ip) && hints.len() < beam_core::invite::MAX_HINTS {
-                hints.push(SocketAddr::new(ip, port));
-            }
-        }
+        let hints = hints(addresses, self.port()?)?;
         Ok(self.invite.with_hints(hints)?.encode())
     }
 
@@ -197,8 +189,24 @@ async fn connect_first(
     Err(last_error.unwrap_or_else(|| BeamError::network("no address to connect to")))
 }
 
-async fn introduce(
-    conn: &mut Connection<TcpStream>,
+/// `addresses` with `port`, as connection hints: at most 4, skipping IPv6 link-local addresses
+/// (they need an interface to be usable).
+pub(crate) fn hints(addresses: Vec<String>, port: u16) -> Result<Vec<SocketAddr>, BeamError> {
+    let mut hints = Vec::new();
+    for address in addresses {
+        let ip: IpAddr = address.parse().map_err(|_| BeamError::Protocol {
+            detail: format!("{address} is not an IP address"),
+        })?;
+        if !is_link_local_v6(ip) && hints.len() < beam_core::invite::MAX_HINTS {
+            hints.push(SocketAddr::new(ip, port));
+        }
+    }
+    Ok(hints)
+}
+
+/// Swaps `HELLO`s right after a pairing handshake and describes the device on the other end.
+pub(crate) async fn introduce<S: AsyncRead + AsyncWrite + Unpin>(
+    conn: &mut Connection<S>,
     hello: &Hello,
     cipher: SessionCipher,
 ) -> Result<PairedDevice, BeamError> {
