@@ -3,9 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Runs the WebAssembly engine in headless Chromium against a native peer. Start it with tools/web-engine-test.sh.",
+  "description": "Runs the WebAssembly engine in headless Chromium against a native peer, and beam-web's browser-only tests. Start it with tools/web-engine-test.sh.",
   "scripts": {
     "e2e": "node handshake.e2e.mjs",
+    "wasm-tests": "node wasm-tests.e2e.mjs",
     "lint": "eslint . --max-warnings 0"
   },
   "devDependencies": {

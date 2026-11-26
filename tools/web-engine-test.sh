@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds the WebAssembly engine and the native test peer, then pairs them in headless Chromium
-# (core/beam-web/e2e/handshake.e2e.mjs).
+# (core/beam-web/e2e/handshake.e2e.mjs). Then runs beam-web's browser-only Rust tests
+# (core/beam-web/tests, such as OPFS staging in a dedicated worker) in the same Chromium.
 #
 # Needs: the wasm32-unknown-unknown target (rust-toolchain.toml), wasm-bindgen-cli at the same
 # version as the wasm-bindgen crate in core/Cargo.lock, a clang that targets wasm
@@ -13,7 +14,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 target=${CARGO_TARGET_DIR:-$root/core/target}
 cd "$root/core"
 
-# wasm-bindgen refuses a module built by a different version of its crate.
+# wasm-bindgen (and its test runner) refuse a module built by a different version of its crate.
 wanted=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
 have=$(wasm-bindgen --version | awk '{print $2}')
 if [ "$wanted" != "$have" ]; then
@@ -29,3 +30,14 @@ wasm-bindgen --target web --out-dir "$target/beam-web-pkg" \
 
 node "$root/core/beam-web/e2e/handshake.e2e.mjs" \
   "$target/beam-web-pkg" "$target/debug/examples/webtransport_peer"
+
+# Integration tests only: the unit tests are host tests that `cargo test` already runs.
+browser_tests=$(cargo test --locked -p beam-web --target wasm32-unknown-unknown --no-run \
+  --message-format=json | grep '"kind":\["test"\]' | sed -n 's/.*"executable":"\([^"]*\)".*/\1/p')
+if [ -z "$browser_tests" ]; then
+  echo "no browser tests were built" >&2
+  exit 1
+fi
+for tests in $browser_tests; do
+  node "$root/core/beam-web/e2e/wasm-tests.e2e.mjs" "$tests"
+done
