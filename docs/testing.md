@@ -46,7 +46,8 @@ that a device that never paired is declined.
 
 `tools/mac-peer-test.sh` (`MIB=64` by default) runs the phone on USB against the CLI over a
 real network: the phone pairs with `beam pair`'s code (both sides must show the same
-verification code), sends the Mac random data, then receives some from it, and the script
+verification code), sends the Mac random data, announces itself over mDNS (the Mac must see
+its beacon with `dns-sd`), then receives data from the Mac, and the script
 prints each direction's speed. By default both use the Wi-Fi they're on; with `--hotspot` the
 phone opens its own hotspot and the Mac joins it (leaving its Wi-Fi for the test, then
 rejoining). The phone side is `MacPeerOnDeviceTest`, skipped in ordinary test runs. To tell

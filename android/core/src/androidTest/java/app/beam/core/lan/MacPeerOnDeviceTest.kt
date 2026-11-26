@@ -11,14 +11,20 @@ import app.beam.core.Engine
 import app.beam.core.ProgressListener
 import app.beam.core.SendResult
 import app.beam.core.TrustedKeys
+import app.beam.core.discovery.BeaconAnnouncer
 import app.beam.core.network.Hotspot
 import app.beam.core.network.HotspotSession
 import app.beam.core.network.LocalNetworks
 import java.io.File
 import java.net.InetAddress
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -30,7 +36,8 @@ import org.junit.runner.RunWith
 /**
  * The phone and a `beam` CLI on a Mac, over a real network: the phone's Wi-Fi, or (with
  * `hotspot=true`) a hotspot the phone opens and the Mac joins. The phone waits for the Mac's
- * pairing code, pairs, sends the Mac a file, then receives one from it.
+ * pairing code, pairs, sends the Mac a file, announces itself over mDNS (the Mac looks for
+ * it), then receives a file from the Mac.
  *
  * Skipped unless `tools/mac-peer-test.sh` runs it (`macPeer=true`). It reads the `LAN ` lines
  * this test logs and pushes the code into [codeFile].
@@ -43,9 +50,11 @@ class MacPeerOnDeviceTest {
     private val codeFile = File(context.getExternalFilesDir(null), "mac-code.txt")
     private val networks = LocalNetworks(context)
     private var hotspot: HotspotSession? = null
+    private val announcing = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @After
     fun cleanUp() {
+        announcing.cancel()
         hotspot?.close()
         networks.stop()
         root.deleteRecursively()
@@ -88,9 +97,18 @@ class MacPeerOnDeviceTest {
             assertEquals(SendResult.Delivered, sent)
             say("SENT ${rate(file.length().toULong(), started)}")
 
+            val announcer = BeaconAnnouncer(context, engine, announcing)
+            announcer.start(PHONE_PORT)
+            val announced = withTimeout(ANNOUNCE_WAIT_MS) {
+                announcer.state.first { it !is BeaconAnnouncer.State.Stopped }
+            }
+            check(announced is BeaconAnnouncer.State.Announcing) { "not announced: $announced" }
+            say("ANNOUNCING beacon=${announced.beacon}")
+
             say("LISTENING port=$PHONE_PORT")
             val saved = withTimeout(RECEIVE_WAIT_MS) { receive.await() }
             assertEquals(1, saved.size)
+            announcer.stop()
         }
     }
 
@@ -166,6 +184,7 @@ class MacPeerOnDeviceTest {
         const val DEFAULT_MIB = 64
         const val MAC_WAIT_MS = 180_000L
         const val RECEIVE_WAIT_MS = 120_000L
+        const val ANNOUNCE_WAIT_MS = 10_000L
         const val POLL_MS = 200L
         const val SEND_TRIES = 40
         const val SEND_RETRY_MS = 500L
