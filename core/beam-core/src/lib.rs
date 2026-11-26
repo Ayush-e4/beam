@@ -42,10 +42,12 @@ mod sender_stream;
 pub mod session;
 pub mod signaling;
 pub mod staging;
+pub mod storage_file;
 #[cfg(feature = "native")]
 pub mod tcp;
 #[cfg(feature = "native")]
 pub mod transfer;
+pub mod transfer_staging;
 pub mod verification;
 pub mod version;
 #[cfg(feature = "native")]
@@ -80,10 +82,12 @@ pub use sender_opened::{
 };
 pub use session::Session;
 pub use signaling::{SignalFrom, SignalMessage, SignalSeal};
+pub use storage_file::StorageFile;
 #[cfg(feature = "native")]
 pub use transfer::{
     SendOutcome, confirm_received, read_offer, receive_transfer, receive_transfer_noting,
     reject_offer, send_transfer,
 };
+pub use transfer_staging::TransferStaging;
 pub use verification::VerificationCode;
 pub use version::ProtocolVersion;

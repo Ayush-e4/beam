@@ -1,4 +1,4 @@
-//! Opening a [`Receiver`]: checking the offer and finding its staging folder.
+//! Opening a [`Receiver`]: checking the offer and finding its staging.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -9,6 +9,7 @@ use crate::manifest::Manifest;
 use crate::pack::{Unpacker, is_packable};
 use crate::progress::Progress;
 use crate::receiver_store::{STAGING_DIR, Store};
+use crate::transfer_staging::TransferStaging;
 use crate::{BeamError, Result, staging};
 
 impl Receiver {
@@ -37,6 +38,36 @@ impl Receiver {
         selection: &[u32],
         sender: &[u8],
     ) -> Result<Self> {
+        if manifest
+            .items()
+            .iter()
+            .any(|i| i.path.segments()[0].eq_ignore_ascii_case(STAGING_DIR))
+        {
+            return Err(BeamError::Malformed(
+                "path uses the reserved staging folder".into(),
+            ));
+        }
+        let folder = staging::claim(destination, manifest.transfer_id(), sender)?;
+        Self::open_staged(
+            manifest,
+            selection,
+            Box::new(Store::open(destination, folder)),
+        )
+    }
+
+    /// Prepares to receive `manifest` into `staging`, resuming whatever progress its journal
+    /// holds. `selection` lists the wanted item IDs; empty means all. The caller makes sure
+    /// `staging` belongs to this transfer from this sender.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BeamError::Malformed`] for an unknown selected item, and a storage error if
+    /// the journal can't be opened.
+    pub fn open_staged(
+        manifest: Manifest,
+        selection: &[u32],
+        mut staging: Box<dyn TransferStaging>,
+    ) -> Result<Self> {
         let selected: HashSet<u32> = if selection.is_empty() {
             manifest.items().iter().map(|i| i.item_id).collect()
         } else {
@@ -48,18 +79,7 @@ impl Receiver {
                 "selection names an unknown item".into(),
             ));
         }
-        if manifest
-            .items()
-            .iter()
-            .any(|i| i.path.segments()[0].eq_ignore_ascii_case(STAGING_DIR))
-        {
-            return Err(BeamError::Malformed(
-                "path uses the reserved staging folder".into(),
-            ));
-        }
-        let folder = staging::claim(destination, manifest.transfer_id(), sender)?;
-        let store = Store::open(destination, folder);
-        let journal = Journal::open(&store.journal_path(), &manifest)?;
+        let journal = Journal::open_file(staging.journal()?, &manifest)?;
         let mut hashes = HashMap::new();
         for item in manifest.items() {
             if selected.contains(&item.item_id) && !is_packable(item) {
@@ -72,7 +92,7 @@ impl Receiver {
         let mut receiver = Self {
             manifest,
             selected,
-            store,
+            store: staging,
             journal,
             hashes,
             pending: Vec::new(),

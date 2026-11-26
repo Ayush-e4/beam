@@ -11,18 +11,19 @@
 //! fingerprint, truncated to 8 bytes, so a record can only belong to this journal.
 //!
 //! **Contract:** call [`Journal::record`] only after the chunk data itself has been flushed to
-//! disk (for example with `File::sync_data`). The journal then never claims a chunk that is not
+//! disk (for example with [`StorageFile::sync`]). The journal then never claims a chunk that is not
 //! durably stored. If the process dies mid-append, the torn last record fails its checksum and
 //! is cut off the next time the journal is opened.
 
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::Read;
 use std::path::Path;
 
 use crate::chunk_set::ChunkSet;
 use crate::integrity::Hash;
 use crate::manifest::Manifest;
+use crate::storage_file::StorageFile;
 use crate::{BeamError, Result};
 
 const MAGIC: &[u8; 8] = b"BEAMJNL1";
@@ -33,7 +34,9 @@ const CHECKSUM_CONTEXT: &str = "beam 2026-11 journal checksum v1";
 /// Resume journal for one transfer.
 #[derive(Debug)]
 pub struct Journal {
-    file: File,
+    file: Box<dyn StorageFile>,
+    /// Where the next record goes: the end of the valid part.
+    len: u64,
     fingerprint: Hash,
     progress: HashMap<u32, ChunkSet>,
     resumed: bool,
@@ -48,20 +51,33 @@ impl Journal {
     ///
     /// Returns a storage error if the file cannot be read, written or synced.
     pub fn open(path: &Path, manifest: &Manifest) -> Result<Self> {
-        let fingerprint = manifest.fingerprint();
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
             .open(path)
             .map_err(BeamError::storage)?;
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).map_err(BeamError::storage)?;
+        Self::open_file(Box::new(file), manifest)
+    }
+
+    /// Like [`Journal::open`], on a file that is already open (browser storage, say).
+    ///
+    /// # Errors
+    ///
+    /// Returns a storage error if the file cannot be read, written or synced.
+    pub fn open_file(mut file: Box<dyn StorageFile>, manifest: &Manifest) -> Result<Self> {
+        let fingerprint = manifest.fingerprint();
+        let size = file.size().map_err(BeamError::storage)?;
+        let size = usize::try_from(size).map_err(|_| BeamError::Malformed(too_large()))?;
+        let mut bytes = vec![0u8; size];
+        file.read_exact_at(&mut bytes, 0)
+            .map_err(BeamError::storage)?;
 
         let progress = empty_progress(manifest)?;
         let mut journal = Self {
             file,
+            len: 0,
             fingerprint,
             progress,
             resumed: false,
@@ -117,10 +133,10 @@ impl Journal {
             buffer.extend_from_slice(&self.record_bytes(item_id, chunk));
         }
         self.file
-            .seek(SeekFrom::End(0))
+            .write_all_at(&buffer, self.len)
             .map_err(BeamError::storage)?;
-        self.file.write_all(&buffer).map_err(BeamError::storage)?;
-        self.file.sync_data().map_err(BeamError::storage)?;
+        self.file.sync().map_err(BeamError::storage)?;
+        self.len += buffer.len() as u64;
 
         for &(item_id, chunk) in chunks {
             if let Some(set) = self.progress.get_mut(&item_id) {
@@ -175,17 +191,19 @@ impl Journal {
         self.truncate_to(0)?;
         let header = self.header();
         self.file
-            .seek(SeekFrom::Start(0))
+            .write_all_at(&header, 0)
             .map_err(BeamError::storage)?;
-        self.file.write_all(&header).map_err(BeamError::storage)?;
-        self.file.sync_all().map_err(BeamError::storage)
+        self.file.sync().map_err(BeamError::storage)?;
+        self.len = header.len() as u64;
+        Ok(())
     }
 
     fn truncate_to(&mut self, len: usize) -> Result<()> {
-        let len =
-            u64::try_from(len).map_err(|_| BeamError::Malformed("journal too large".into()))?;
+        let len = u64::try_from(len).map_err(|_| BeamError::Malformed(too_large()))?;
         self.file.set_len(len).map_err(BeamError::storage)?;
-        self.file.sync_all().map_err(BeamError::storage)
+        self.file.sync().map_err(BeamError::storage)?;
+        self.len = len;
+        Ok(())
     }
 }
 
@@ -195,6 +213,10 @@ pub(crate) fn belongs_to(path: &Path, manifest: &Manifest) -> bool {
     File::open(path)
         .and_then(|mut file| file.read_exact(&mut header))
         .is_ok_and(|()| header == header_for(&manifest.fingerprint()))
+}
+
+fn too_large() -> String {
+    "journal too large".into()
 }
 
 fn header_for(fingerprint: &Hash) -> [u8; HEADER_LEN] {

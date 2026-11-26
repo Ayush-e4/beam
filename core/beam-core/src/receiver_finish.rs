@@ -93,7 +93,7 @@ impl Receiver {
             .iter()
             .map(|item| self.store.publish(item))
             .collect::<Result<Vec<_>>>()?;
-        self.store.remove_staging()?;
+        self.store.remove()?;
         Ok(paths)
     }
 
