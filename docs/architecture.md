@@ -53,6 +53,9 @@ Shared engine, compiled for Android, the browser (WebAssembly) and later desktop
 - Crypto: hardware-accelerated AES-GCM / ChaCha20-Poly1305, Noise-based handshakes.
 - Integrity: BLAKE3 per-chunk hashes, enabling resume.
 - File pipeline: parallel read → hash → encrypt → send; small-file packing; adaptive zstd.
+- Source files are read by position through the `ReadAt` trait: a `File` on the phone and the
+  Mac, a picked file (`FileReaderSync`) in the browser's worker. Paths are only needed for
+  folders picked on the Mac.
 - Exposed to Kotlin through `beam-ffi`, a thin layer whose bindings UniFFI generates (Kotlin
   package `app.beam.core`, loaded through JNA). Every fallible call returns a typed
   `BeamException` with one subclass per error category (network, storage, permission,
