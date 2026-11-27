@@ -10,11 +10,13 @@ import java.util.Collections
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -81,13 +83,21 @@ class ClipLinksTest {
     }
 
     @Test
-    fun `what a linked device copies lands on the clipboard`() = runBlocking {
+    fun `what a linked device copies lands on the clipboard`(): Unit = runBlocking {
         val link = FakeLink()
         val device = links.add("Chrome on Mac", link)
         assertEquals(listOf(device), links.linked.value)
         assertEquals(1, linkedCalls)
+        val arrival = async { links.arrivals.first() }
+        yield()
         link.arrive.send(text("from the browser"))
         assertEquals(text("from the browser"), withTimeout(5_000) { put.receive() })
+        assertEquals(
+            Arrival(device, text("from the browser")),
+            withTimeout(5_000) {
+                arrival.await()
+            }
+        )
     }
 
     @Test

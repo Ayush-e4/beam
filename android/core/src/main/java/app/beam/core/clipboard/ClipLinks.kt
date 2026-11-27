@@ -10,8 +10,11 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -22,6 +25,9 @@ data class LinkedDevice(val id: Long, val name: String, val publicKey: ByteArray
 
     override fun hashCode(): Int = id.hashCode()
 }
+
+/** An item [device] copied, now on this phone's clipboard. */
+data class Arrival(val device: LinkedDevice, val clip: ReceivedClip)
 
 /**
  * The clipboard links this phone has open, one per device, outliving every screen. What a
@@ -40,8 +46,13 @@ class ClipLinks internal constructor(
     private val entries = MutableStateFlow<List<Entry>>(emptyList())
     private val devices = MutableStateFlow<List<LinkedDevice>>(emptyList())
 
+    private val arrived = MutableSharedFlow<Arrival>(extraBufferCapacity = ARRIVALS_KEPT)
+
     /** The devices linked right now. */
     val linked: StateFlow<List<LinkedDevice>> = devices.asStateFlow()
+
+    /** Each item a linked device copied, once it is on the clipboard, for showing it. */
+    val arrivals: SharedFlow<Arrival> = arrived.asSharedFlow()
 
     /** Starts using [link] with the device called [name]: its copies land on the clipboard. */
     fun add(name: String, link: ClipLinkInterface): LinkedDevice {
@@ -102,6 +113,7 @@ class ClipLinks internal constructor(
                 val clip = link.nextClip() ?: break
                 try {
                     put(clip)
+                    arrived.tryEmit(Arrival(device, clip))
                 } catch (e: IOException) {
                     warn("could not keep the image ${device.name} copied", e)
                 }
@@ -121,6 +133,7 @@ class ClipLinks internal constructor(
 
     companion object {
         private const val TAG = "BeamClipLinks"
+        private const val ARRIVALS_KEPT = 16
 
         @Volatile
         private var instance: ClipLinks? = null
