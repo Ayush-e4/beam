@@ -39,6 +39,10 @@
   **Send clipboard** and **Disconnect** on its notification. The **Send clipboard** Quick
   Settings tile (`ClipTileService`) does the same from anywhere, shows who is linked, and opens
   Beam when nobody is; `ClipTileService.requestAdd` asks people to add it (Android 13+).
+  **Share → Beam** (`ShareToBeamActivity`, labelled "Send to linked device") sends shared text
+  or a single image the same way, without a window. It only reads `content:` images from other
+  apps' providers, never `file:` URIs or Beam's own, so another app can't make Beam send its
+  private files.
 - **Discovery:** Network Service Discovery (mDNS) on the LAN, plus QR pairing.
 - **Links:** LAN, Wi-Fi Direct / Wi-Fi Aware, local-only hotspot, internet (WebRTC/QUIC),
   Bluetooth fallback (v1.1), USB network (later).
