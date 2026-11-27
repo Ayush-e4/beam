@@ -93,6 +93,10 @@ name = "m1_exit_tcp"
 required-features = ["native"]
 
 [[test]]
+name = "signal_room_live"
+required-features = ["native"]
+
+[[test]]
 name = "tcp_prepare"
 required-features = ["native"]
 
