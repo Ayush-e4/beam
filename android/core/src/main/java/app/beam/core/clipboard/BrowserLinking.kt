@@ -3,6 +3,7 @@ package app.beam.core.clipboard
 import app.beam.core.BrowserPairing
 import app.beam.core.Engine
 import app.beam.core.network.PhoneAddresses
+import app.beam.core.trust.DeviceKind
 import app.beam.core.trust.TrustedDevice
 import app.beam.core.trust.TrustedDevices
 
@@ -56,7 +57,7 @@ class PendingLink internal constructor(
      */
     suspend fun await(phoneName: String): LinkedDevice {
         val browser = pairing.waitForBrowser(phoneName)
-        trusted.add(TrustedDevice.from(browser, System.currentTimeMillis()))
+        trusted.add(TrustedDevice.from(browser, System.currentTimeMillis(), DeviceKind.BROWSER))
         val link = pairing.link()
         done = true
         pairing.close() // the link keeps the server it needs

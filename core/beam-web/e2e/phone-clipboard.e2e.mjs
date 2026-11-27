@@ -3,7 +3,8 @@
 // and posts its sealed offer in the code's room on the signaling service running on this Mac
 // (the phone reaches it through `adb reverse`), where the page picks it up. The page connects
 // to the phone's Wi-Fi address, sends text and an image, and gets back what the phone's focus
-// window sends. tools/phone-browser-test.sh runs it.
+// window sends. Then, without a code, the phone waits for this trusted browser in their
+// meeting room and the page meets it again. tools/phone-browser-test.sh runs it.
 // Usage: node phone-clipboard.e2e.mjs <dir with beam_web.js + beam_web_bg.wasm> <adb> <ws://signaling>
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -41,18 +42,36 @@ try {
     const { beam } = globalThis;
     globalThis.identity = beam.Identity.generate();
     globalThis.invite = new beam.Invite(globalThis.identity, 'chacha-poly');
-    // As the web app will: wait in the code's room for the phone's offer.
-    const room = Array.from(globalThis.invite.room, (b) => b.toString(16).padStart(2, '0')).join('');
-    globalThis.phoneOffer = new Promise((resolve, reject) => {
-      const socket = new WebSocket(`${signaling}/rooms/${room}`);
-      socket.binaryType = 'arraybuffer';
-      socket.addEventListener('message', (event) => {
-        if (typeof event.data === 'string') return; // the room's own notices
-        resolve(new Uint8Array(event.data));
-        socket.close();
+    const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    // As the web app will: wait in a room for the phone's first offer.
+    globalThis.waitInRoom = (room) =>
+      new Promise((resolve, reject) => {
+        const socket = new WebSocket(`${signaling}/rooms/${hex(room)}`);
+        socket.binaryType = 'arraybuffer';
+        socket.addEventListener('message', (event) => {
+          if (typeof event.data === 'string') return; // the room's own notices
+          resolve(new Uint8Array(event.data));
+          socket.close();
+        });
+        socket.addEventListener('close', (event) => reject(new Error(`the room closed (${event.code})`)));
       });
-      socket.addEventListener('close', (event) => reject(new Error(`the room closed (${event.code})`)));
-    });
+    // Tries each address the phone offered, and once more, before giving up.
+    globalThis.connectTo = async (offer) => {
+      let last;
+      for (const address of [...offer.addresses, ...offer.addresses]) {
+        const attempt = new WebTransport(`https://${address}/beam`, {
+          serverCertificateHashes: [{ algorithm: 'sha-256', value: offer.certificateHash }],
+        });
+        try {
+          await attempt.ready;
+          return { transport: attempt, address };
+        } catch (error) {
+          last = error;
+        }
+      }
+      throw last;
+    };
+    globalThis.phoneOffer = globalThis.waitInRoom(globalThis.invite.room);
     globalThis.phoneOffer.catch(() => {}); // awaited later
     return globalThis.invite.text();
   }, signaling);
@@ -70,31 +89,15 @@ try {
   const result = await page.evaluate(async () => {
     const { beam } = globalThis;
     const offer = globalThis.invite.openOffer(await globalThis.phoneOffer);
-    // As the web app will: try each address, and once more, before giving up.
-    let connectedTo;
-    const open = async () => {
-      let last;
-      for (const address of [...offer.addresses, ...offer.addresses]) {
-        const attempt = new WebTransport(`https://${address}/beam`, {
-          serverCertificateHashes: [{ algorithm: 'sha-256', value: offer.certificateHash }],
-        });
-        try {
-          await attempt.ready;
-          connectedTo = address;
-          return attempt;
-        } catch (error) {
-          last = error;
-        }
-      }
-      throw last;
-    };
     let transport;
     try {
-      transport = await open();
+      let connectedTo;
+      ({ transport, address: connectedTo } = await globalThis.connectTo(offer));
       const stream = await transport.createBidirectionalStream();
       const handshake = beam.BeamHandshake.pairing(globalThis.identity, globalThis.invite);
       const connection = await beam.BeamConnection.establish(handshake, stream.readable, stream.writable);
       const phone = await connection.introduce('Chrome on Mac', globalThis.identity.discoveryKey);
+      globalThis.phoneKey = phone.publicKey;
       const link = connection.link();
       const started = performance.now();
       await link.sendText('from the Mac', false);
@@ -118,6 +121,38 @@ try {
   check(result.second.code === '482913' && result.second.sensitive === false, 'a code in a message arrives with the code found');
   console.log(`# round trip with focus windows: ${result.ms} ms`);
   check((await log.line('ENDED')) === '', 'stopping ends the link on the phone');
+
+  // Later, without a code: the phone waits for its trusted browser in their meeting room.
+  await log.line('MEETING');
+  const again = await page.evaluate(async () => {
+    const { beam } = globalThis;
+    const meeting = globalThis.identity.meet(globalThis.phoneKey);
+    let transport;
+    try {
+      const offer = meeting.openOffer(await globalThis.waitInRoom(meeting.room));
+      ({ transport } = await globalThis.connectTo(offer));
+      const stream = await transport.createBidirectionalStream();
+      const handshake = beam.BeamHandshake.knownDevice(globalThis.identity, 'chacha-poly', globalThis.phoneKey);
+      const connection = await beam.BeamConnection.establish(handshake, stream.readable, stream.writable);
+      const link = connection.link();
+      const started = performance.now();
+      await link.sendText('again from the Mac', false);
+      const back = await link.nextClip();
+      const ms = Math.round(performance.now() - started);
+      link.stop();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return { back: back?.text, ms };
+    } catch (error) {
+      return { failed: `${error.name}/${error.category ?? '-'}: ${error.message}` };
+    } finally {
+      transport?.close();
+    }
+  });
+  check(!again.failed, again.failed ?? 'met the phone again without a code');
+  check((await log.line('MET ')) === 'Chrome on Mac', 'the phone links its trusted browser again');
+  check(again.back === 'again from the phone', 'clipboard items cross again');
+  console.log(`# meeting round trip with a focus window: ${again.ms} ms`);
+  check((await log.line('DONE')) === '', 'the phone stops waiting once let go');
   await finished;
   check(/OK \(1 test\)/.test(report), `the phone test passed\n${report.trim()}`);
 } finally {

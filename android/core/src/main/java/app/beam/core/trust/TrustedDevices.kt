@@ -14,6 +14,9 @@ import java.io.EOFException
 import java.io.File
 import java.io.IOException
 
+/** What kind of device was paired: phones are found on the network, browsers in rooms. */
+enum class DeviceKind { PHONE, BROWSER }
+
 /**
  * A device this phone paired with. [discoveryKey] is the only secret: it lets this phone
  * recognise the device's discovery beacons on the network.
@@ -24,7 +27,8 @@ data class TrustedDevice(
     val name: String,
     val cipher: SessionCipher,
     val discoveryKey: ByteArray,
-    val pairedAtMillis: Long
+    val pairedAtMillis: Long,
+    val kind: DeviceKind = DeviceKind.PHONE
 ) {
     override fun equals(other: Any?): Boolean = other is TrustedDevice &&
         deviceId == other.deviceId &&
@@ -32,22 +36,25 @@ data class TrustedDevice(
         name == other.name &&
         cipher == other.cipher &&
         discoveryKey.contentEquals(other.discoveryKey) &&
-        pairedAtMillis == other.pairedAtMillis
+        pairedAtMillis == other.pairedAtMillis &&
+        kind == other.kind
 
     override fun hashCode(): Int = deviceId.hashCode()
 
     override fun toString(): String = "TrustedDevice(deviceId=$deviceId, name=$name)"
 
     companion object {
-        /** The record to keep after pairing with [device] at [nowMillis]. */
-        fun from(device: PairedDevice, nowMillis: Long) = TrustedDevice(
-            device.deviceId,
-            device.publicKey,
-            device.name,
-            device.cipher,
-            device.discoveryKey,
-            nowMillis
-        )
+        /** The record to keep after pairing with [device], a [kind], at [nowMillis]. */
+        fun from(device: PairedDevice, nowMillis: Long, kind: DeviceKind = DeviceKind.PHONE) =
+            TrustedDevice(
+                device.deviceId,
+                device.publicKey,
+                device.name,
+                device.cipher,
+                device.discoveryKey,
+                nowMillis,
+                kind
+            )
     }
 }
 
@@ -70,6 +77,11 @@ class TrustedDevices(
     @Synchronized
     @Throws(IOException::class)
     fun all(): List<TrustedDevice> = loaded().sortedByDescending { it.pairedAtMillis }
+
+    /** The trusted browsers, which this phone meets in their signaling rooms. */
+    @Synchronized
+    @Throws(IOException::class)
+    fun browsers(): List<TrustedDevice> = all().filter { it.kind == DeviceKind.BROWSER }
 
     /** The trusted device with [publicKey], if any: the check before accepting a transfer. */
     @Synchronized
@@ -143,6 +155,7 @@ class TrustedDevices(
         writeShort(device.discoveryKey.size)
         write(device.discoveryKey)
         writeLong(device.pairedAtMillis)
+        writeUTF(device.kind.name)
     }
 
     private fun DataInputStream.readDevice(): TrustedDevice {
@@ -154,12 +167,18 @@ class TrustedDevices(
             SessionCipher.entries.firstOrNull { it.name == cipherName }
                 ?: throw IOException("unknown cipher \"$cipherName\" in trusted-devices file")
         val discoveryKey = ByteArray(readUnsignedShort()).also { readFully(it) }
-        return TrustedDevice(deviceId, key, name, cipher, discoveryKey, readLong())
+        val pairedAt = readLong()
+        val kindName = readUTF()
+        val kind =
+            DeviceKind.entries.firstOrNull { it.name == kindName }
+                ?: throw IOException("unknown device kind \"$kindName\" in trusted-devices file")
+        return TrustedDevice(deviceId, key, name, cipher, discoveryKey, pairedAt, kind)
     }
 
     companion object {
-        // 2 added the discovery key. Nothing shipped with 1, so it isn't migrated.
-        private const val FORMAT_VERSION: Byte = 2
+        // 2 added the discovery key, 3 the device kind. Nothing shipped with 1 or 2, so they
+        // aren't migrated.
+        private const val FORMAT_VERSION: Byte = 3
         private const val TAG = "BeamTrust"
 
         /** The app's trusted devices. Not backed up: the identity they trust isn't either. */
