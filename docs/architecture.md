@@ -43,6 +43,9 @@
   or a single image the same way, without a window. It only reads `content:` images from other
   apps' providers, never `file:` URIs or Beam's own, so another app can't make Beam send its
   private files.
+  `BrowserLinking.start(code)` pairs with a browser's code (serving on `PhoneAddresses`) and
+  gives the sealed offer to post; `PendingLink.await(name)` keeps the browser as a trusted device
+  and adds its link. `ClipLinks.arrivals` reports each item that landed, for the UI.
 - **Discovery:** Network Service Discovery (mDNS) on the LAN, plus QR pairing.
 - **Links:** LAN, Wi-Fi Direct / Wi-Fi Aware, local-only hotspot, internet (WebRTC/QUIC),
   Bluetooth fallback (v1.1), USB network (later).
