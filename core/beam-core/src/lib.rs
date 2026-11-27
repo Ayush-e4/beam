@@ -20,6 +20,8 @@ pub mod integrity;
 pub mod invite;
 pub mod journal;
 pub mod keys;
+#[cfg(any(feature = "native", target_family = "wasm"))]
+pub mod link;
 pub mod manifest;
 pub mod messages;
 mod mime;
@@ -77,6 +79,8 @@ pub use integrity::{ChunkLayout, FileHashes, Hash, RootHasher};
 pub use invite::PairingInvite;
 pub use journal::Journal;
 pub use keys::{DeviceId, PublicKey, StaticKeypair};
+#[cfg(any(feature = "native", target_family = "wasm"))]
+pub use link::{LinkEnd, LinkTiming, run_link};
 pub use manifest::{Manifest, ManifestItem, TransferId};
 pub use progress::Progress;
 pub use read_at::ReadAt;

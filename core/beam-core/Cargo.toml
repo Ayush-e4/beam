@@ -26,7 +26,6 @@ native = [
   "dep:time",
   "tokio/net",
   "tokio/rt",
-  "tokio/sync",
   "tokio/time",
 ]
 
@@ -45,7 +44,8 @@ socket2 = { version = "0.6.5", optional = true }
 snow = { version = "0.10.0", features = ["ring-accelerated"] }
 thiserror = "2.0.21"
 time = { version = "0.3.55", optional = true }
-tokio = { version = "1.54.1", features = ["io-util"] }
+# `sync` for the link's channels, which need no runtime and so work in a browser too.
+tokio = { version = "1.54.1", features = ["io-util", "sync"] }
 zeroize = "1.9.2"
 zstd = { version = "0.14.4", default-features = false }
 
