@@ -3,8 +3,8 @@ package app.beam.core.transfers
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import app.beam.core.BeamException
 import app.beam.core.Engine
 import app.beam.core.NetworkFailure
@@ -194,7 +194,7 @@ class Sending(
             } else {
                 engine.resumeSend(sources, resumeId)
             }
-        SourceKind.CONTENT -> engine.prepareSendUris(context, sources.map(Uri::parse), resumeId)
+        SourceKind.CONTENT -> engine.prepareSendUris(context, sources.map { it.toUri() }, resumeId)
     }
 
     private fun forget(transferId: String) {
@@ -208,7 +208,7 @@ class Sending(
 
     /** Keeps read access to [uri] after a restart, where its provider allows it. */
     private fun keepAccess(uri: String) {
-        val parsed = Uri.parse(uri)
+        val parsed = uri.toUri()
         if (parsed.scheme != ContentResolver.SCHEME_CONTENT) return
         try {
             context.contentResolver.takePersistableUriPermission(

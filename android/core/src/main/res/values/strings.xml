@@ -34,4 +34,18 @@
         <item quantity="one">%1$d transfer finished, %2$d didn\'t complete</item>
         <item quantity="other">%1$d transfers finished, %2$d didn\'t complete</item>
     </plurals>
+
+    <string name="beam_channel_linked">Linked devices</string>
+    <string name="beam_channel_linked_description">Shows while another device shares this phone\'s clipboard</string>
+    <string name="beam_linked_title">Clipboard linked</string>
+    <string name="beam_linked_with">With %1$s</string>
+    <string name="beam_send_clipboard">Send clipboard</string>
+    <string name="beam_disconnect">Disconnect</string>
+    <string name="beam_clip_sent">Clipboard sent</string>
+    <string name="beam_clip_already_there">Already on the other device</string>
+    <string name="beam_clip_nobody">No device is linked</string>
+    <string name="beam_clip_nothing">Nothing copied</string>
+    <string name="beam_clip_too_large">Too big for the clipboard. Send it as a file.</string>
+    <string name="beam_clip_unsupported">Beam can\'t send this as a clip</string>
+    <string name="beam_clip_failed">The link was lost. Connect again.</string>
 </resources>

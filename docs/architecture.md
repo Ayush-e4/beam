@@ -30,6 +30,13 @@
 - **UI:** Kotlin + Jetpack Compose, single-activity, unidirectional data flow (ViewModel → state).
 - **Transfer service:** a foreground service (`dataSync` type) owns every active transfer so
   Android doesn't kill it. Note Android 15+ limits `dataSync` services to about 6 hours per 24 h.
+- **Clipboard** (`android/core/.../clipboard/`): `ClipLinks` holds one `ClipLink` per linked
+  device; what a device copies goes straight onto the clipboard (`PhoneClipboard`, marked
+  sensitive on Android 13+; images through `ClipFileProvider`). Android 10+ only lets an app
+  read the clipboard while one of its windows has focus, so sending opens `ClipFocusActivity`,
+  an invisible window that reads once focused, sends and closes. While a device is linked a
+  `connectedDevice` foreground service (`ClipLinkService`) keeps the links open, with
+  **Send clipboard** and **Disconnect** on its notification.
 - **Discovery:** Network Service Discovery (mDNS) on the LAN, plus QR pairing.
 - **Links:** LAN, Wi-Fi Direct / Wi-Fi Aware, local-only hotspot, internet (WebRTC/QUIC),
   Bluetooth fallback (v1.1), USB network (later).
