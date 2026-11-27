@@ -8,6 +8,7 @@ on:
         'signal/**',
         'tools/web-engine-test.sh',
         'tools/signal-room-test.sh',
+        'tools/lib/**',
         'rust-toolchain.toml',
         '.github/workflows/core.yml',
       ]
@@ -19,6 +20,7 @@ on:
         'signal/**',
         'tools/web-engine-test.sh',
         'tools/signal-room-test.sh',
+        'tools/lib/**',
         'rust-toolchain.toml',
         '.github/workflows/core.yml',
       ]
@@ -85,7 +87,8 @@ jobs:
   web-engine:
     # The WebAssembly engine in headless Chromium pairs with a native peer over WebTransport,
     # then beam-web's browser-only tests (OPFS staging in a dedicated worker) run there too.
-    # beam-core's signaling client also joins the real room service, run locally by Wrangler.
+    # beam-core's signaling client also joins the real room service, run locally by Wrangler,
+    # and the browser meets the phone app's engine again there.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
