@@ -42,6 +42,7 @@
     <string name="beam_send_clipboard">Send clipboard</string>
     <string name="beam_disconnect">Disconnect</string>
     <string name="beam_tile_not_linked">Not linked</string>
+    <string name="beam_share_label">Send to linked device</string>
     <string name="beam_clip_sent">Clipboard sent</string>
     <string name="beam_clip_already_there">Already on the other device</string>
     <string name="beam_clip_nobody">No device is linked</string>

@@ -81,6 +81,23 @@
             android:taskAffinity=""
             android:theme="@style/Beam.ClipFocus" />
 
+        <!-- "Share → Beam" for text and single images; sends them like the clipboard. -->
+        <activity
+            android:name=".clipboard.ShareToBeamActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/beam_share_label"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Beam.ClipFocus">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
         <!-- Received clipboard images, readable by the app they are pasted into. -->
         <provider
             android:name=".clipboard.ClipFileProvider"

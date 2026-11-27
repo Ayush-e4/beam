@@ -9,9 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.beam.core.ClipBody
 import app.beam.core.ClipKind
-import app.beam.core.ClipLinkInterface
 import app.beam.core.ReceivedClip
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -31,38 +29,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ClipboardOnDeviceTest {
-    /** A linked device played by the test. */
-    private class FakeLink :
-        ClipLinkInterface,
-        AutoCloseable {
-        val arrive = Channel<ReceivedClip>(Channel.UNLIMITED)
-        val sent = Channel<Pair<String, Any>>(Channel.UNLIMITED)
-
-        override suspend fun nextClip(): ReceivedClip? = arrive.receiveCatching().getOrNull()
-
-        override fun peerKey(): ByteArray = ByteArray(32)
-
-        override suspend fun sendText(text: String, sensitive: Boolean): Boolean {
-            sent.send((if (sensitive) "secret" else "text") to text)
-            return true
-        }
-
-        override suspend fun sendImage(
-            mime: String,
-            bytes: ByteArray,
-            sensitive: Boolean
-        ): Boolean {
-            sent.send(mime to bytes)
-            return true
-        }
-
-        override fun stop() {
-            arrive.close()
-        }
-
-        override fun close() = Unit
-    }
-
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
     private val links = ClipLinks.get(context)
