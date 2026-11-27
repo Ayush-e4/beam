@@ -6,6 +6,8 @@
 
 mod base32;
 pub mod chunk_set;
+pub mod clipboard;
+pub mod clipboard_label;
 pub mod compress;
 pub mod connection;
 pub mod discovery;
@@ -63,6 +65,8 @@ mod webtransport_setup;
 mod wire;
 
 pub use chunk_set::ChunkSet;
+pub use clipboard::{ClipContent, ClipItem, EchoGuard};
+pub use clipboard_label::{ClipLabel, find_code, label_text};
 pub use connection::Connection;
 pub use discovery::{Beacon, DiscoveryKey};
 pub use error::{BeamError, ErrorCategory, Result};

@@ -305,9 +305,28 @@ runtime on both sides (`beam-core/src/transfer.rs`).
 
 ## Clipboard
 
-- `CLIPBOARD` frames carry text directly, and images or files as a small transfer.
-- Each item has an ID and timestamp; the newest wins, and echoes are suppressed.
-- Pro feature; gated by capability negotiation.
+One copied item per `CLIPBOARD` frame, on the control stream (ID 0):
+
+```
+CLIPBOARD : kind u8 (1 text, 2 image) | flags u8 (bit 0: sensitive)
+            | mime_len u8 | mime | body (the rest: UTF-8 text or image bytes)
+```
+
+- Text is `text/plain`, 1 byte to 1 MiB. Images are PNG, JPEG, GIF, WebP, AVIF, HEIC/HEIF or
+  BMP, at most 8 MiB; bigger images and files go as a transfer. SVG is refused.
+- **Sensitive** items (passwords, one-time codes) are kept out of previews and history. A
+  receiver also treats text that looks like a one-time code as sensitive.
+- **Labels** (`clipboard_label.rs`) let the receiver show a lone `http(s)` link as a link and a
+  code big, with a copy button: a code is 4–10 letters and digits with at least 4 digits,
+  ignoring spaces, dashes and a short prefix such as `G-`. `find_code` also picks the code out
+  of a short message that mentions one ("Your OTP is 482913").
+- **Echoes:** writing a received item to the local clipboard looks like a new copy, so each
+  side remembers the last item that crossed either way and doesn't send it again
+  (`EchoGuard`).
+- Pro feature; gated by capability negotiation (not enforced yet).
+
+Decoders reject unknown kinds and flags, a type that doesn't match the kind, text that isn't
+UTF-8 and content over the limits (`beam-core/src/clipboard.rs`).
 
 ## Errors
 

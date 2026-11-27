@@ -35,6 +35,7 @@ jobs:
           - pairing_invite
           - beacon
           - signal_message
+          - clipboard
     defaults:
       run:
         working-directory: core/fuzz
