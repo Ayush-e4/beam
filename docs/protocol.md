@@ -127,6 +127,12 @@ send is sealed with a key the server doesn't have, so it can't read, change or f
 - **Close codes:** 4001 room full, 4002 room expired, 4003 too many messages, 4004 message
   too big, 4005 text sent (messages must be binary).
 
+The native client is `beam_core::SignalRoom` (`signal_room.rs`): `join(service, room)` with
+`wss://…` (TLS on ring, Mozilla's roots) or `ws://…` for a local `wrangler dev`, then `post`
+sealed messages and read `next` events (`Joined`, `PeerJoined`, `PeerLeft`, `BufferFull`,
+`Message`). Unknown notices are skipped; the close codes above come back as
+`BeamError::Signaling` saying why, a normal close as the end of the room.
+
 ## Session layer
 
 After the handshake, all messages are framed and encrypted with session keys:

@@ -3,11 +3,25 @@ name: Core (Rust)
 on:
   pull_request:
     paths:
-      ['core/**', 'tools/web-engine-test.sh', 'rust-toolchain.toml', '.github/workflows/core.yml']
+      [
+        'core/**',
+        'signal/**',
+        'tools/web-engine-test.sh',
+        'tools/signal-room-test.sh',
+        'rust-toolchain.toml',
+        '.github/workflows/core.yml',
+      ]
   push:
     branches: [master]
     paths:
-      ['core/**', 'tools/web-engine-test.sh', 'rust-toolchain.toml', '.github/workflows/core.yml']
+      [
+        'core/**',
+        'signal/**',
+        'tools/web-engine-test.sh',
+        'tools/signal-room-test.sh',
+        'rust-toolchain.toml',
+        '.github/workflows/core.yml',
+      ]
 
 permissions:
   contents: read
@@ -57,6 +71,10 @@ jobs:
         with:
           workspaces: core
           key: wasm
+      - name: Join the room service (signal/, under Wrangler) with the signaling client
+        env:
+          WRANGLER_SEND_METRICS: false
+        run: tools/signal-room-test.sh
       - name: Use clang for the C parts (ring, zstd)
         run: |
           echo "CC_wasm32_unknown_unknown=clang" >> "$GITHUB_ENV"
@@ -71,6 +89,7 @@ jobs:
   web-engine:
     # The WebAssembly engine in headless Chromium pairs with a native peer over WebTransport,
     # then beam-web's browser-only tests (OPFS staging in a dedicated worker) run there too.
+    # beam-core's signaling client also joins the real room service, run locally by Wrangler.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

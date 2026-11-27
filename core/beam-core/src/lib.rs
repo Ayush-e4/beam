@@ -46,6 +46,10 @@ mod sender_pack;
 mod sender_source;
 mod sender_stream;
 pub mod session;
+#[cfg(feature = "native")]
+pub mod signal_room;
+#[cfg(feature = "native")]
+mod signal_stream;
 pub mod signaling;
 pub mod staging;
 pub mod storage_file;
@@ -93,6 +97,8 @@ pub use sender_opened::{
     prepare_readable_with_id,
 };
 pub use session::Session;
+#[cfg(feature = "native")]
+pub use signal_room::{RoomEvent, SignalRoom};
 pub use signaling::{SignalFrom, SignalMessage, SignalSeal};
 pub use storage_file::StorageFile;
 #[cfg(any(feature = "native", target_family = "wasm"))]

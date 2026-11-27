@@ -15,6 +15,7 @@ default = ["native"]
 # crate builds for browsers (wasm32-unknown-unknown): protocol, crypto, framing, handshake, and
 # the transfer loops on the browser's timers (src/runtime.rs).
 native = [
+  "dep:futures-util",
   "dep:h3",
   "dep:h3-quinn",
   "dep:h3-webtransport",
@@ -24,6 +25,9 @@ native = [
   "dep:rustls",
   "dep:socket2",
   "dep:time",
+  "dep:tokio-rustls",
+  "dep:tokio-tungstenite",
+  "dep:webpki-roots",
   "tokio/net",
   "tokio/rt",
   "tokio/time",
@@ -31,6 +35,8 @@ native = [
 
 [dependencies]
 blake3 = "1.8.7"
+# `StreamExt`/`SinkExt` for the signaling room's WebSocket (comes with tokio-tungstenite).
+futures-util = { version = "0.3.34", default-features = false, features = ["sink"], optional = true }
 bytes = "1.12.2"
 h3 = { version = "0.0.8", optional = true }
 h3-quinn = { version = "0.0.10", features = ["datagram"], optional = true }
@@ -46,6 +52,11 @@ thiserror = "2.0.21"
 time = { version = "0.3.55", optional = true }
 # `sync` for the link's channels, which need no runtime and so work in a browser too.
 tokio = { version = "1.54.1", features = ["io-util", "sync"] }
+# The signaling room's WebSocket (signal_room.rs), over our own TCP and TLS on ring, trusting
+# Mozilla's root certificates.
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"], optional = true }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"], optional = true }
+webpki-roots = { version = "1.0.12", optional = true }
 zeroize = "1.9.2"
 zstd = { version = "0.14.4", default-features = false }
 

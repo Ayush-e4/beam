@@ -153,6 +153,9 @@ a message with a one-time code. The phone's screen must be on and unlocked.
 
 - Unit tests for room lifecycle, expiry and message authentication.
 - Local integration tests with Cloudflare's local runtime.
+- `tools/signal-room-test.sh` runs the Worker under `wrangler dev` and has beam-core's
+  `SignalRoom` join it as a phone and a browser: the kept offer, the answer, a third device
+  turned away, and the other device leaving (`core/beam-core/tests/signal_room_live.rs`).
 
 ## End-to-end scenarios
 
