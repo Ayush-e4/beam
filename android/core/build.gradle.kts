@@ -189,6 +189,8 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
     // @RequiresApi for the Android 14+ discovery path.
     implementation(libs.androidx.annotation)
+    // FileProvider, for clipboard images other apps paste.
+    implementation(libs.androidx.core)
     testImplementation(libs.jna)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

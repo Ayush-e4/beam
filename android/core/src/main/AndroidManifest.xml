@@ -34,6 +34,9 @@
          asks people before showing them. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Clipboard links stay open in the background while devices are linked (a
+         connectedDevice foreground service, allowed here by CHANGE_WIFI_MULTICAST_STATE). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- While transfers run, the CPU (and below Android 14, Wi-Fi) stays awake so they don't
@@ -51,6 +54,31 @@
             android:name=".transfers.TransferService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".clipboard.ClipLinkService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <!-- Reads the clipboard while it has focus, then closes; never in recents. -->
+        <activity
+            android:name=".clipboard.ClipFocusActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Beam.ClipFocus" />
+
+        <!-- Received clipboard images, readable by the app they are pasted into. -->
+        <provider
+            android:name=".clipboard.ClipFileProvider"
+            android:authorities="${applicationId}.beam.clips"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/beam_clip_paths" />
+        </provider>
     </application>
 
 </manifest>
