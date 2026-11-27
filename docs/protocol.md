@@ -325,6 +325,12 @@ CLIPBOARD : kind u8 (1 text, 2 image) | flags u8 (bit 0: sensitive)
   (`EchoGuard`).
 - Pro feature; gated by capability negotiation (not enforced yet).
 
+Items travel on a **link**: a connection the two devices keep open while both are around
+(`beam-core/src/link.rs`). Either side sends `CLIPBOARD` whenever something is copied. A side
+that hasn't heard from the other for 15 s sends an empty `PING`, answered by an empty `PONG`,
+and after 45 s of silence it ends the link, so a device that vanished doesn't leave it
+hanging. Any other frame on a link is a protocol error.
+
 Decoders reject unknown kinds and flags, a type that doesn't match the kind, text that isn't
 UTF-8 and content over the limits (`beam-core/src/clipboard.rs`).
 
