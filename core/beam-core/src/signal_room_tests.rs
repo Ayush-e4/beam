@@ -11,10 +11,16 @@ const ROOM: [u8; 16] = [0xAB; 16];
 /// A one-device stand-in for the service: checks the path, says `joined`, then echoes each
 /// binary message back as if from the other device, until it gets "close <code>".
 async fn fake_service() -> String {
+    fake_service_greeting(Message::text(r#"{"type":"joined","peers":0}"#)).await
+}
+
+/// [`fake_service`] that greets each device with `greeting` instead.
+async fn fake_service_greeting(greeting: Message) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
         while let Ok((tcp, _)) = listener.accept().await {
+            let greeting = greeting.clone();
             tokio::spawn(async move {
                 #[allow(clippy::result_large_err)] // the handshake callback's signature
                 let check = |request: &http::Request<()>, response| {
@@ -24,8 +30,7 @@ async fn fake_service() -> String {
                 let mut socket = tokio_tungstenite::accept_hdr_async(tcp, check)
                     .await
                     .unwrap();
-                let joined = r#"{"type":"joined","peers":0}"#;
-                socket.send(Message::text(joined)).await.unwrap();
+                socket.send(greeting).await.unwrap();
                 while let Some(Ok(message)) = socket.next().await {
                     let reply = match &message {
                         Message::Binary(bytes) if bytes.starts_with(b"close ") => {
@@ -123,6 +128,35 @@ async fn bad_addresses_refusals_and_big_messages_are_errors() {
         .await
         .unwrap();
     assert!(room.post(vec![0; MAX_MESSAGE_LEN + 1]).await.is_err());
+}
+
+#[tokio::test]
+async fn delivering_joins_posts_and_goes_unless_turned_away() {
+    SignalRoom::deliver(&fake_service().await, &ROOM, vec![7; 64])
+        .await
+        .unwrap();
+
+    let full = Message::Close(Some(CloseFrame {
+        code: 4001.into(),
+        reason: "full".into(),
+    }));
+    let err = SignalRoom::deliver(&fake_service_greeting(full).await, &ROOM, vec![7])
+        .await
+        .err()
+        .unwrap();
+    assert!(
+        matches!(&err, BeamError::Signaling(why) if why.contains("full")),
+        "{err}"
+    );
+
+    let silent = Message::text(r#"{"type":"news"}"#);
+    let service = fake_service_greeting(silent).await;
+    let err = tokio::time::timeout(
+        std::time::Duration::from_millis(300),
+        SignalRoom::deliver(&service, &ROOM, vec![7]),
+    )
+    .await;
+    assert!(err.is_err(), "waits for the room to say it's in");
 }
 
 #[test]

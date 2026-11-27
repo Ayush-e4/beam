@@ -106,8 +106,9 @@ Beam's speed from the network's, compare with raw TCP (`nc`) between the same tw
 `tools/phone-browser-test.sh` is the real clipboard test between the phone on USB and headless
 Chromium on the Mac, over the Wi-Fi they share. The phone (`BrowserLinkOnDeviceTest`, skipped in
 ordinary runs) links with the browser's pairing code through `BrowserLinking`, as the app does,
-and logs its sealed offer, which the script hands to the page in place of signaling. The browser
-then sends text and a 300 KiB image, and gets back what the phone's focus window sends, including
+and posts its sealed offer in the code's room on the signaling service, which the script runs on
+the Mac under Wrangler (the phone reaches it through `adb reverse`); the page waits in that room
+for it, as the web app will. The browser then sends text and a 300 KiB image, and gets back what the phone's focus window sends, including
 a message with a one-time code. The phone's screen must be on and unlocked.
 
 ### Android app

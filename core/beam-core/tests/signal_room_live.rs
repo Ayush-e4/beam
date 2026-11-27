@@ -73,3 +73,28 @@ async fn a_phone_and_a_browser_meet_in_a_room() {
     assert_eq!(next(&mut phone).await.unwrap(), Some(RoomEvent::PeerLeft));
     phone.leave().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs the room service: tools/signal-room-test.sh"]
+async fn a_delivered_offer_waits_for_the_browser() {
+    let service = service();
+    let room = random_room();
+    timeout(
+        STEP,
+        SignalRoom::deliver(&service, &room, b"sealed offer".to_vec()),
+    )
+    .await
+    .expect("the room answers")
+    .unwrap();
+
+    let mut browser = SignalRoom::join(&service, &room).await.unwrap();
+    assert_eq!(
+        next(&mut browser).await.unwrap(),
+        Some(RoomEvent::Joined { peers: 0 })
+    );
+    assert_eq!(
+        next(&mut browser).await.unwrap(),
+        Some(RoomEvent::Message(b"sealed offer".to_vec()))
+    );
+    browser.leave().await.unwrap();
+}

@@ -111,3 +111,54 @@ async fn stopping_ends_the_wait() {
         .unwrap();
     assert!(matches!(ended, Err(BeamError::Network { .. })), "{ended:?}");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn announcing_needs_a_reachable_service_and_an_address() {
+    let (_, code) = browser_code();
+    let (_engine, pairing) = scanned(code).await;
+    let unused = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let unreachable = pairing
+        .announce(format!("ws://{unused}"), vec!["10.0.0.2".into()])
+        .await;
+    assert!(
+        matches!(unreachable, Err(BeamError::Network { .. })),
+        "{unreachable:?}"
+    );
+    let no_address = pairing.announce(format!("ws://{unused}"), vec![]).await;
+    assert!(
+        matches!(no_address, Err(BeamError::Protocol { .. })),
+        "{no_address:?}"
+    );
+}
+
+/// Against the real room service (`tools/signal-room-test.sh` sets `BEAM_SIGNAL_URL`): the
+/// browser showing the code finds the phone's offer in its room.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "needs the room service: tools/signal-room-test.sh"]
+async fn the_browser_finds_the_announced_offer_in_its_room() {
+    let service = std::env::var("BEAM_SIGNAL_URL").unwrap();
+    let (invite, code) = browser_code();
+    let (_engine, pairing) = scanned(code).await;
+    pairing
+        .announce(service.clone(), vec!["192.168.1.20".into()])
+        .await
+        .unwrap();
+
+    let mut browser = beam_core::SignalRoom::join(&service, &invite.room())
+        .await
+        .unwrap();
+    let sealed = loop {
+        match browser.next().await.unwrap() {
+            Some(beam_core::RoomEvent::Message(sealed)) => break sealed,
+            Some(_) => {}
+            None => panic!("the room closed before the offer"),
+        }
+    };
+    let (hints, _) = open(&invite, &sealed);
+    let port = pairing.port().unwrap();
+    assert_eq!(hints, vec![format!("192.168.1.20:{port}").parse().unwrap()]);
+    browser.leave().await.unwrap();
+}

@@ -140,6 +140,27 @@ impl SignalRoom {
     pub async fn leave(mut self) -> Result<()> {
         self.socket.close(None).await.map_err(network)
     }
+
+    /// Joins `room`, leaves `sealed` there for the other device and goes: the room passes it
+    /// on now if the other device is in, or keeps it until it joins.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::join`] and [`Self::post`], and [`BeamError::Signaling`] if the room turned
+    /// this device away.
+    pub async fn deliver(service: &str, room: &[u8; 16], sealed: Vec<u8>) -> Result<()> {
+        let mut joined = Self::join(service, room).await?;
+        match joined.next().await? {
+            Some(RoomEvent::Joined { .. }) => {}
+            _ => {
+                return Err(BeamError::Signaling(
+                    "the room didn't let this device in".into(),
+                ));
+            }
+        }
+        joined.post(sealed).await?;
+        joined.leave().await
+    }
 }
 
 async fn tls(host: &str, tcp: TcpStream) -> Result<tokio_rustls::client::TlsStream<TcpStream>> {

@@ -8,26 +8,31 @@ import app.beam.core.trust.TrustedDevices
 
 /**
  * Links this phone's clipboard with the browser whose pairing code was scanned. The browser
- * can't accept connections, so the phone serves and tells it where to connect: [start] gives
- * the sealed offer to post in the code's signaling room, then [PendingLink.await] pairs,
- * keeps the browser as a trusted device and opens the clipboard link.
+ * can't accept connections, so the phone serves and tells it where to connect: [start] posts
+ * a sealed offer in the code's room on the [signaling] service, then [PendingLink.await]
+ * pairs, keeps the browser as a trusted device and opens the clipboard link.
  */
 class BrowserLinking(
     private val engine: Engine,
     private val links: ClipLinks,
     private val trusted: TrustedDevices,
+    /** The signaling service: `wss://…`, or `ws://…` for a local one. */
+    private val signaling: String,
     private val addresses: () -> List<String> = PhoneAddresses::find
 ) {
     /**
-     * Starts serving for the browser showing [code].
+     * Starts serving for the browser showing [code] and tells it where to connect.
      *
      * @throws app.beam.core.BeamException.Protocol if it isn't a Beam code, or the phone has
      * no address on a network the browser could share.
+     * @throws app.beam.core.BeamException.Network if the signaling service can't be reached
+     * or turned the phone away.
      */
     suspend fun start(code: String): PendingLink {
         val pairing = engine.pairWithBrowser(code)
         return try {
-            PendingLink(pairing.room(), pairing.offer(addresses()), pairing, links, trusted)
+            pairing.announce(signaling, addresses())
+            PendingLink(pairing, links, trusted)
         } catch (e: Exception) {
             pairing.stop()
             pairing.close()
@@ -36,15 +41,8 @@ class BrowserLinking(
     }
 }
 
-/**
- * A browser link waiting for the browser. Post [offer] in the signaling [room], then call
- * [await]; [close] gives up.
- */
+/** A browser link waiting for the browser: [await] it, or [close] to give up. */
 class PendingLink internal constructor(
-    /** The signaling room, as `/rooms/{room}` takes it. */
-    val room: String,
-    /** The sealed offer to post there. */
-    val offer: ByteArray,
     private val pairing: BrowserPairing,
     private val links: ClipLinks,
     private val trusted: TrustedDevices

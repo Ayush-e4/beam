@@ -1,9 +1,10 @@
 // The real clipboard test: headless Chromium on this Mac links with the Android app's code on
 // a phone over Wi-Fi. The phone runs BrowserLinkOnDeviceTest with the browser's pairing code
-// and logs the sealed offer, which this script hands to the page (standing in for
-// signaling). The page connects to the phone's Wi-Fi address, sends text and an image, and
-// gets back what the phone's focus window sends. tools/phone-browser-test.sh runs it.
-// Usage: node phone-clipboard.e2e.mjs <dir with beam_web.js + beam_web_bg.wasm> <adb>
+// and posts its sealed offer in the code's room on the signaling service running on this Mac
+// (the phone reaches it through `adb reverse`), where the page picks it up. The page connects
+// to the phone's Wi-Fi address, sends text and an image, and gets back what the phone's focus
+// window sends. tools/phone-browser-test.sh runs it.
+// Usage: node phone-clipboard.e2e.mjs <dir with beam_web.js + beam_web_bg.wasm> <adb> <ws://signaling>
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
@@ -11,7 +12,7 @@ import { chromium } from 'playwright-core';
 
 import { check, openPage } from './harness.mjs';
 
-const [pkgDir, adb] = process.argv.slice(2);
+const [pkgDir, adb, signaling] = process.argv.slice(2);
 const RUNNER = 'app.beam.core.test/androidx.test.runner.AndroidJUnitRunner';
 const TEST = 'app.beam.core.clipboard.BrowserLinkOnDeviceTest';
 
@@ -36,13 +37,26 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 const log = phoneLog();
 try {
   const page = await openPage(browser, pkgDir);
-  const code = await page.evaluate(() => {
+  const code = await page.evaluate((signaling) => {
     const { beam } = globalThis;
     globalThis.identity = beam.Identity.generate();
     globalThis.invite = new beam.Invite(globalThis.identity, 'chacha-poly');
+    // As the web app will: wait in the code's room for the phone's offer.
+    const room = Array.from(globalThis.invite.room, (b) => b.toString(16).padStart(2, '0')).join('');
+    globalThis.phoneOffer = new Promise((resolve, reject) => {
+      const socket = new WebSocket(`${signaling}/rooms/${room}`);
+      socket.binaryType = 'arraybuffer';
+      socket.addEventListener('message', (event) => {
+        if (typeof event.data === 'string') return; // the room's own notices
+        resolve(new Uint8Array(event.data));
+        socket.close();
+      });
+      socket.addEventListener('close', (event) => reject(new Error(`the room closed (${event.code})`)));
+    });
+    globalThis.phoneOffer.catch(() => {}); // awaited later
     return globalThis.invite.text();
-  });
-  const instrument = spawn(adb, ['shell', 'am', 'instrument', '-w', '-e', 'class', TEST, '-e', 'browserCode', `'${code}'`, RUNNER], { stdio: ['ignore', 'pipe', 'inherit'] });
+  }, signaling);
+  const instrument = spawn(adb, ['shell', 'am', 'instrument', '-w', '-e', 'class', TEST, '-e', 'browserCode', `'${code}'`, '-e', 'signaling', signaling, RUNNER], { stdio: ['ignore', 'pipe', 'inherit'] });
   let report = '';
   instrument.stdout.on('data', (chunk) => (report += chunk));
   const finished = new Promise((resolve) => instrument.on('exit', resolve));
@@ -51,11 +65,11 @@ try {
   const ended = finished.then(() => {
     throw new Error(`the phone test ended early\n${report.trim()}`);
   });
-  const sealed = await Promise.race([log.line('OFFER '), ended]);
+  await Promise.race([log.line('ANNOUNCED'), ended]);
   ended.catch(() => {}); // later lines are awaited on their own
-  const result = await page.evaluate(async (sealed) => {
+  const result = await page.evaluate(async () => {
     const { beam } = globalThis;
-    const offer = globalThis.invite.openOffer(new Uint8Array(sealed.match(/../g).map((b) => parseInt(b, 16))));
+    const offer = globalThis.invite.openOffer(await globalThis.phoneOffer);
     // As the web app will: try each address, and once more, before giving up.
     let connectedTo;
     const open = async () => {
@@ -96,7 +110,7 @@ try {
     } finally {
       transport?.close();
     }
-  }, sealed);
+  });
   check(!result.failed, result.failed ?? `linked with ${result.phone} at ${result.address}`);
   check((await log.line('LINKED ')) === 'Chrome on Mac', 'the phone knows the browser by name');
   check((await log.line('GOT ')).length > 0, 'the phone got the text and the image');
