@@ -59,6 +59,18 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- The "Send clipboard" Quick Settings tile. -->
+        <service
+            android:name=".clipboard.ClipTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_beam_notification"
+            android:label="@string/beam_send_clipboard"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <!-- Reads the clipboard while it has focus, then closes; never in recents. -->
         <activity
             android:name=".clipboard.ClipFocusActivity"

@@ -36,7 +36,9 @@
   read the clipboard while one of its windows has focus, so sending opens `ClipFocusActivity`,
   an invisible window that reads once focused, sends and closes. While a device is linked a
   `connectedDevice` foreground service (`ClipLinkService`) keeps the links open, with
-  **Send clipboard** and **Disconnect** on its notification.
+  **Send clipboard** and **Disconnect** on its notification. The **Send clipboard** Quick
+  Settings tile (`ClipTileService`) does the same from anywhere, shows who is linked, and opens
+  Beam when nobody is; `ClipTileService.requestAdd` asks people to add it (Android 13+).
 - **Discovery:** Network Service Discovery (mDNS) on the LAN, plus QR pairing.
 - **Links:** LAN, Wi-Fi Direct / Wi-Fi Aware, local-only hotspot, internet (WebRTC/QUIC),
   Bluetooth fallback (v1.1), USB network (later).

@@ -2,7 +2,9 @@ package app.beam.core.clipboard
 
 import android.Manifest
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.beam.core.ClipBody
@@ -116,6 +118,30 @@ class ClipboardOnDeviceTest {
         val (mime, bytes) = sendClipboard()
         assertEquals("image/png", mime)
         assertArrayEquals(png, bytes as ByteArray)
+    }
+
+    @Test
+    fun theTileSendsTheClipboard() {
+        clipboard.put(
+            ReceivedClip(ClipBody.Text("tapped from the tile"), ClipKind.TEXT, false, null)
+        )
+        val tile = ComponentName(context, ClipTileService::class.java).flattenToString()
+        shell("cmd statusbar add-tile $tile")
+        try {
+            shell("cmd statusbar click-tile $tile")
+            val sent = runBlocking { withTimeout(TIMEOUT_MS) { link.sent.receive() } }
+            assertEquals("text" to "tapped from the tile", sent)
+        } finally {
+            shell("cmd statusbar remove-tile $tile")
+            shell("cmd statusbar collapse")
+        }
+    }
+
+    /** Runs a shell command as the test's shell user and waits for it to finish. */
+    private fun shell(command: String) {
+        instrumentation.uiAutomation.executeShellCommand(command).use { output ->
+            ParcelFileDescriptor.AutoCloseInputStream(output).use { it.readBytes() }
+        }
     }
 
     @Test
