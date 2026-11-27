@@ -9,7 +9,7 @@ use std::io;
 use beam_core::ErrorCategory;
 
 /// An engine failure, by category. Kotlin sees it as `BeamException`.
-#[derive(Debug, PartialEq, Eq, thiserror::Error, uniffi::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, uniffi::Error)]
 pub enum BeamError {
     /// The link to the peer failed: unreachable, dropped or timed out. Usually worth retrying.
     #[error("network: {detail}")]

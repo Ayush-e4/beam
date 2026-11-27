@@ -27,6 +27,7 @@ fi
 
 cargo build --locked -p beam-core --example webtransport_peer
 cargo build --locked -p beam-ffi --example browser_pairing_peer
+cargo build --locked -p beam-ffi --example browser_link_peer
 cargo build --locked -p beam-web --target wasm32-unknown-unknown --release
 wasm-bindgen --target web --out-dir "$target/beam-web-pkg" \
   "$target/wasm32-unknown-unknown/release/beam_web.wasm"
@@ -39,6 +40,8 @@ node "$root/core/beam-web/e2e/send.e2e.mjs" \
   "$target/beam-web-pkg" "$target/debug/examples/webtransport_peer"
 node "$root/core/beam-web/e2e/phone-pairing.e2e.mjs" \
   "$target/beam-web-pkg" "$target/debug/examples/browser_pairing_peer"
+node "$root/core/beam-web/e2e/clipboard.e2e.mjs" \
+  "$target/beam-web-pkg" "$target/debug/examples/browser_link_peer"
 
 # Integration tests only: the unit tests are host tests that `cargo test` already runs.
 browser_tests=$(cargo test --locked -p beam-web --target wasm32-unknown-unknown --no-run \

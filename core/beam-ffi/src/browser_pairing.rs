@@ -15,6 +15,7 @@ use tokio::runtime::Handle;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 
+use crate::clip_link::{ClipLink, KeepAlive};
 use crate::pairing::{PairedDevice, hints, introduce};
 use crate::runtime::run;
 use crate::{BeamError, DeviceIdentity};
@@ -152,16 +153,31 @@ impl BrowserPairing {
         .await
     }
 
+    /// Turns the paired connection into a clipboard link with the browser, which stays open
+    /// while both are around, even after this object is released. Single use: no other
+    /// browser can connect from then on.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Protocol`] if no browser paired yet or the connection was already taken.
+    pub async fn link(&self) -> Result<Arc<ClipLink>, BeamError> {
+        let conn = self
+            .paired
+            .lock()
+            .await
+            .take()
+            .ok_or_else(|| BeamError::Protocol {
+                detail: "no paired browser connection to link".into(),
+            })?;
+        self.server.stop_accepting();
+        let server: KeepAlive = self.server.clone();
+        Ok(ClipLink::start(self.handle.clone(), conn, Some(server)))
+    }
+
     /// Stops serving and closes the paired connection, if any; a pending
     /// [`Self::wait_for_browser`] ends with [`BeamError::Network`]. Not named `close`, which
     /// Kotlin objects already have for releasing them.
     pub fn stop(&self) {
-        self.server.close();
-    }
-}
-
-impl Drop for BrowserPairing {
-    fn drop(&mut self) {
         self.server.close();
     }
 }

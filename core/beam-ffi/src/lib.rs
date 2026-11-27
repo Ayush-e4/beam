@@ -6,6 +6,8 @@
 //! category.
 
 mod browser_pairing;
+mod clip;
+mod clip_link;
 mod discovery;
 mod engine;
 mod error;
@@ -25,6 +27,8 @@ mod trust;
 mod types;
 
 pub use browser_pairing::BrowserPairing;
+pub use clip::{ClipBody, ClipKind, ReceivedClip, clip_kind, find_code};
+pub use clip_link::ClipLink;
 pub use discovery::recognise_beacon;
 pub use engine::Engine;
 pub use error::{BeamError, NetworkFailure};

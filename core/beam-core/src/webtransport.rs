@@ -117,6 +117,11 @@ impl WebTransportServer {
         self.endpoint.wait_idle().await;
     }
 
+    /// Stops setting up new browsers; sessions already open keep working.
+    pub fn stop_accepting(&self) {
+        self.accepting.abort();
+    }
+
     /// Stops accepting and closes every session.
     pub fn close(&self) {
         self.accepting.abort();
