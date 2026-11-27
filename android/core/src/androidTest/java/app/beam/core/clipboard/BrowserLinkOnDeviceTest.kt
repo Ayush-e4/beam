@@ -10,7 +10,11 @@ import app.beam.core.Engine
 import app.beam.core.ReceivedClip
 import app.beam.core.trust.TrustedDevices
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
@@ -18,6 +22,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -28,8 +33,9 @@ import org.junit.runner.RunWith
  * (`tools/phone-browser-test.sh` runs both). It links with the browser showing the code it
  * is given, posting its offer in the room on the Mac's signaling service (`-e signaling`,
  * reached through `adb reverse`), takes the browser's text and image, then sends the
- * clipboard back through the focus window. Skipped unless run with `-e browserCode BEAM1:…`.
- * The screen must be on and unlocked.
+ * clipboard back through the focus window. Then it waits for that browser in their meeting
+ * room ([BrowserMeetings]) and the browser links again without a code. Skipped unless run
+ * with `-e browserCode BEAM1:…`. The screen must be on and unlocked.
  */
 @RunWith(AndroidJUnit4::class)
 class BrowserLinkOnDeviceTest {
@@ -70,6 +76,33 @@ class BrowserLinkOnDeviceTest {
             }
             withTimeout(STEP_MS) { links.linked.first { it.isEmpty() } }
             Log.i(TAG, "ENDED")
+
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val meetings = BrowserMeetings(engine, trusted, links, signaling, scope)
+                meetings.hold().use {
+                    val arrival = async { links.arrivals.first() }
+                    Log.i(TAG, "MEETING")
+                    val again = withTimeout(STEP_MS) { links.linked.first { it.isNotEmpty() } }
+                    Log.i(TAG, "MET ${again.single().name}")
+                    val clip = withTimeout(STEP_MS) { arrival.await() }.clip
+                    assertEquals(ClipBody.Text("again from the Mac"), clip.body)
+                    PhoneClipboard(context).put(
+                        ReceivedClip(
+                            ClipBody.Text("again from the phone"),
+                            ClipKind.TEXT,
+                            false,
+                            null
+                        )
+                    )
+                    context.startActivity(ClipFocusActivity.intent(context))
+                    withTimeout(STEP_MS) { links.linked.first { it.isEmpty() } }
+                }
+                assertFalse("let go", meetings.waiting.value)
+                Log.i(TAG, "DONE")
+            } finally {
+                scope.cancel()
+            }
         }
         root.deleteRecursively()
     }

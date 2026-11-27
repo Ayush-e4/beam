@@ -45,6 +45,18 @@ class TrustedDevicesTest {
     }
 
     @Test
+    fun `browsers are kept apart from phones`() {
+        val browser = device(3, name = "Chrome on Mac").copy(kind = DeviceKind.BROWSER)
+        TrustedDevices(file).apply {
+            add(device(1))
+            add(browser)
+        }
+        val reloaded = TrustedDevices(file)
+        assertEquals(listOf(browser), reloaded.browsers())
+        assertEquals(DeviceKind.PHONE, reloaded.find(ByteArray(32) { 1 })?.kind)
+    }
+
+    @Test
     fun `re-pairing replaces the old record`() {
         val store = TrustedDevices(file)
         store.add(device(1))
@@ -74,7 +86,7 @@ class TrustedDevicesTest {
     @Test
     fun `an older file format is an error`() {
         TrustedDevices(file).add(device(1))
-        file.writeBytes(file.readBytes().also { it[0] = 1 })
+        file.writeBytes(file.readBytes().also { it[0] = 2 })
         assertThrows(IOException::class.java) { TrustedDevices(file).all() }
     }
 
