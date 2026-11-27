@@ -35,6 +35,10 @@
 - **Bulk encryption:** AES-256-GCM with hardware acceleration; ChaCha20-Poly1305 fallback. The
   device showing the pairing QR code picks one and puts it in the code.
 - **Integrity:** BLAKE3 per chunk plus whole-file root hash.
+- **Meeting rooms:** two trusted devices derive their signaling room and the seal for its
+  messages from their static X25519 agreement, with BLAKE3 `derive_key` under contexts of
+  their own (`protocol.md`, Meeting again). Noise IK mixes the same static-static value into
+  its own key schedule, so neither use reveals anything the other relies on.
 - Only well-maintained, audited libraries; no custom crypto primitives.
 
 ## Key storage
@@ -74,6 +78,8 @@ some features (clipboard, installation) are unavailable. The UI makes this clear
 - mDNS advertisements contain a beacon that changes every 15 minutes and on every network
   change. Only trusted devices can link it to the device (see `protocol.md`, Discovery);
   it never contains the device ID or the user's name.
+- A trusted pair meets in the same signaling room every time, so the signaling service can
+  tell that one pair met again (not who they are, nor what they said).
 - Logs contain no file names or contents; crash reports are opt-in.
 - The phone hotspot (Android's local-only hotspot) shares no internet. Android picks its name
   and a fresh random password every time it opens, and it closes when Beam no longer needs

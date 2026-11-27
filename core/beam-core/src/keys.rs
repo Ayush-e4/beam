@@ -146,6 +146,24 @@ impl StaticKeypair {
     pub fn private_bytes(&self) -> &[u8; KEY_LEN] {
         &self.private
     }
+
+    /// The X25519 secret this device shares with `peer`: both get the same value, and nobody
+    /// else can compute it. Callers derive their own keys from it with a context string.
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Handshake`] if `peer` is a weak key that gives no shared secret.
+    pub fn agree(&self, peer: &PublicKey) -> Result<Zeroizing<[u8; KEY_LEN]>> {
+        let mut dh = curve25519()?;
+        dh.set(self.private_bytes());
+        let mut shared = Zeroizing::new([0u8; KEY_LEN]);
+        dh.dh(peer.as_bytes(), shared.as_mut_slice())
+            .map_err(|err| BeamError::Handshake(format!("key agreement failed: {err}")))?;
+        if shared.iter().all(|&byte| byte == 0) {
+            return Err(BeamError::Handshake("a weak public key".into()));
+        }
+        Ok(shared)
+    }
 }
 
 impl fmt::Debug for StaticKeypair {
@@ -180,6 +198,26 @@ mod tests {
         let original = StaticKeypair::generate().unwrap();
         let restored = StaticKeypair::from_private_bytes(original.private_bytes()).unwrap();
         assert_eq!(original.public(), restored.public());
+    }
+
+    #[test]
+    fn two_devices_agree_on_a_secret_nobody_else_gets() {
+        let (a, b, c) = (
+            StaticKeypair::generate().unwrap(),
+            StaticKeypair::generate().unwrap(),
+            StaticKeypair::generate().unwrap(),
+        );
+        let ab = a.agree(&b.public()).unwrap();
+        assert_eq!(*ab, *b.agree(&a.public()).unwrap());
+        assert_ne!(*ab, *a.agree(&c.public()).unwrap());
+        assert_ne!(*ab, [0; KEY_LEN]);
+    }
+
+    #[test]
+    fn a_weak_key_gives_no_secret() {
+        let a = StaticKeypair::generate().unwrap();
+        let zero = PublicKey::from_bytes([0; KEY_LEN]);
+        assert!(matches!(a.agree(&zero), Err(BeamError::Handshake(_))));
     }
 
     #[test]

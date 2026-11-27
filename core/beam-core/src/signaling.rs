@@ -61,8 +61,15 @@ impl SignalSeal {
     ///
     /// [`BeamError::Handshake`] if the cipher can't be set up (it always can).
     pub fn for_invite(invite: &PairingInvite) -> Result<Self> {
-        let secret = Zeroizing::new(blake3::derive_key(KEY_CONTEXT, &invite.token));
-        let key = UnboundKey::new(&CHACHA20_POLY1305, secret.as_slice())
+        Self::with_key(&Zeroizing::new(blake3::derive_key(
+            KEY_CONTEXT,
+            &invite.token,
+        )))
+    }
+
+    /// A seal under `key`, which the caller derived for this purpose alone.
+    pub(crate) fn with_key(key: &[u8; 32]) -> Result<Self> {
+        let key = UnboundKey::new(&CHACHA20_POLY1305, key)
             .map_err(|_| BeamError::Handshake("signaling key unusable".into()))?;
         Ok(Self {
             key: LessSafeKey::new(key),
