@@ -105,14 +105,18 @@ dependencies = [
  "h3-quinn",
  "h3-webtransport",
  "http",
+ "js-sys",
  "quinn",
  "rcgen",
  "ring",
  "rustls",
  "snow",
+ "socket2",
  "thiserror",
  "time",
  "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "zeroize",
  "zstd",
 ]
@@ -1292,6 +1296,17 @@ dependencies = [
  "rustversion",
  "wasm-bindgen-macro",
  "wasm-bindgen-shared",
+]
+
+[[package]]
+name = "wasm-bindgen-futures"
+version = "0.4.80"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e14e0327cb5368ad60ccb22d04a9827a693c95a926d8d125e9fa39e0baec501"
+dependencies = [
+ "js-sys",
+ "tokio",
+ "wasm-bindgen",
 ]
 
 [[package]]
