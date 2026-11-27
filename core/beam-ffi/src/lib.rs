@@ -5,6 +5,7 @@
 //! returns a typed [`BeamError`], which Kotlin sees as `BeamException` with one subclass per
 //! category.
 
+mod browser_meeting;
 mod browser_pairing;
 mod clip;
 mod clip_link;
@@ -26,6 +27,7 @@ mod shared;
 mod trust;
 mod types;
 
+pub use browser_meeting::BrowserMeeting;
 pub use browser_pairing::BrowserPairing;
 pub use clip::{ClipBody, ClipKind, ReceivedClip, clip_kind, find_code};
 pub use clip_link::ClipLink;

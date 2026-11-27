@@ -43,18 +43,23 @@ impl Invite {
     #[wasm_bindgen(js_name = openOffer)]
     pub fn open_offer(&self, sealed: &[u8]) -> Result<PhoneOffer, JsValue> {
         let seal = SignalSeal::for_invite(&self.invite).map_err(beam_error)?;
-        let SignalMessage::Offer {
-            hints,
-            certificate_hash,
-        } = seal.open(SignalFrom::Scanner, sealed).map_err(beam_error)?;
-        if hints.is_empty() {
-            return Err(invalid("the phone's offer has no address"));
-        }
-        Ok(PhoneOffer {
-            addresses: hints.iter().map(ToString::to_string).collect(),
-            certificate_hash: certificate_hash.to_vec(),
-        })
+        open_offer(&seal, sealed)
     }
+}
+
+/// Opens an offer the phone sealed with `seal`.
+pub(crate) fn open_offer(seal: &SignalSeal, sealed: &[u8]) -> Result<PhoneOffer, JsValue> {
+    let SignalMessage::Offer {
+        hints,
+        certificate_hash,
+    } = seal.open(SignalFrom::Scanner, sealed).map_err(beam_error)?;
+    if hints.is_empty() {
+        return Err(invalid("the phone's offer has no address"));
+    }
+    Ok(PhoneOffer {
+        addresses: hints.iter().map(ToString::to_string).collect(),
+        certificate_hash: certificate_hash.to_vec(),
+    })
 }
 
 #[wasm_bindgen]

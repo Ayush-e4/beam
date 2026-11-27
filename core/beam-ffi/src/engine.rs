@@ -12,11 +12,13 @@ use beam_core::webtransport::WebTransportServer;
 use beam_core::{Beacon, DiscoveryKey, PairingInvite};
 use tokio::runtime::{Builder, Runtime};
 
+use crate::browser_meeting::{BrowserMeeting, MeetingSetup};
 use crate::browser_pairing::BrowserPairing;
 use crate::finished::Finished;
 use crate::incoming::Listener;
 use crate::pairing::{Local, PairedDevice, PairingHost, pair_with};
 use crate::runtime::{blocking, run};
+use crate::types::peer_key;
 use crate::{BeamError, DeviceIdentity, SessionCipher, TrustedKeys, UnfinishedCleanup};
 
 /// Sends and receives files as this device. Create one per app process.
@@ -208,6 +210,44 @@ impl Engine {
                 discovery_key,
                 invite,
             ))
+        })
+        .await
+    }
+}
+
+#[uniffi::export]
+impl Engine {
+    /// Gets ready to meet `browser`, a trusted browser paired earlier with `cipher`, in their
+    /// room on the signaling `service`: serves WebTransport on a free port and seals the offer
+    /// for this device's `addresses` (at most 4, IPv4 first). Then
+    /// [`BrowserMeeting::meet`].
+    ///
+    /// # Errors
+    ///
+    /// [`BeamError::Crypto`] for a key that isn't a device key, [`BeamError::Protocol`] if no
+    /// address can be offered, [`BeamError::Network`] if no port can be opened.
+    pub async fn meet_browser(
+        &self,
+        browser: Vec<u8>,
+        cipher: SessionCipher,
+        service: String,
+        addresses: Vec<String>,
+    ) -> Result<Arc<BrowserMeeting>, BeamError> {
+        let browser = peer_key(&browser)?;
+        let handle = self.handle()?;
+        let identity = self.identity.clone();
+        let task = handle.clone();
+        run(&handle, async move {
+            let server = WebTransportServer::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)))?;
+            BrowserMeeting::new(MeetingSetup {
+                handle: task,
+                server,
+                identity,
+                browser,
+                cipher: cipher.into(),
+                service,
+                addresses,
+            })
         })
         .await
     }

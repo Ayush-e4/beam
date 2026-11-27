@@ -60,6 +60,14 @@ the Android app. A browser that connects holding another code must be refused wh
 keeps waiting. Then the right browser pairs, each side must learn the other's name and public
 key, and the code must refuse a second pairing.
 
+`e2e/meeting.e2e.mjs` meets that browser again without a code, through the real signaling
+service (`signal/` under `wrangler dev`, which the script starts). The phone stand-in,
+`beam-ffi/examples/browser_meeting_peer.rs`, makes the Android app's `Engine.meetBrowser`
+calls for a browser it trusts. The browser derives the same room from the two keys, waits
+there and opens the offer the phone posts when it joins. A stranger who knows the phone's key
+and connects first must be dropped. The trusted browser then links with Noise IK, and clipboard
+items must cross both ways and the link must end cleanly.
+
 The same script then runs beam-web's browser-only Rust tests (`core/beam-web/tests`) in that
 Chromium: `wasm-bindgen-test-runner` serves them and `e2e/wasm-tests.e2e.mjs` opens the page
 and reports the result. `tests/opfs_staging.rs` runs in a dedicated worker, where OPFS sync
