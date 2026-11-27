@@ -14,13 +14,8 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 target=${CARGO_TARGET_DIR:-$root/core/target}
 adb=${ADB:-${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb}
 port=${PORT:-8787}
-log=$(mktemp)
-
-(cd "$root/signal" && exec npx wrangler dev --port "$port" --ip 127.0.0.1 --log-level warn) \
-  >"$log" 2>&1 &
-wrangler=$!
-"$adb" reverse "tcp:$port" "tcp:$port" >/dev/null
-trap '"$adb" reverse --remove "tcp:$port" 2>/dev/null; kill "$wrangler" 2>/dev/null; rm -f "$log"' EXIT
+. "$root/tools/lib/signal-dev.sh"
+trap '"$adb" reverse --remove "tcp:$port" >/dev/null 2>&1; stop_signal_dev' EXIT
 
 (cd "$root/android" && ./gradlew -q :core:installDebugAndroidTest -Pbeam.rustAbis=arm64-v8a)
 
@@ -29,11 +24,8 @@ cargo build --locked -p beam-web --target wasm32-unknown-unknown --release
 wasm-bindgen --target web --out-dir "$target/beam-web-pkg" \
   "$target/wasm32-unknown-unknown/release/beam_web.wasm"
 
-for _ in $(seq 60); do
-  if curl -s -o /dev/null "http://127.0.0.1:$port/"; then break; fi
-  if ! kill -0 "$wrangler" 2>/dev/null; then cat "$log" >&2; exit 1; fi
-  sleep 1
-done
+start_signal_dev "$root" "$port"
+"$adb" reverse "tcp:$port" "tcp:$port" >/dev/null
 
 node "$root/core/beam-web/e2e/phone-clipboard.e2e.mjs" "$target/beam-web-pkg" "$adb" \
-  "ws://127.0.0.1:$port"
+  "$signal_dev_url"
