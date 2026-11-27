@@ -176,6 +176,8 @@ static generation, GSAP and anime.js for animation.
 - Rooms are keyed by a one-time pairing token from the QR code and expire quickly.
 - Messages are sealed with a key derived from the QR token, so the server cannot read, alter or
   impersonate them.
+- Phones join rooms with beam-core's `SignalRoom` (a WebSocket over tokio-tungstenite);
+  browsers use their own WebSocket.
 
 ### TURN relay
 

@@ -95,6 +95,11 @@ pub enum BeamError {
         path: String,
     },
 
+    /// The signaling room turned this device away or closed: full, expired, or a limit
+    /// reached. Start again with a new pairing code.
+    #[error("signaling room: {0}")]
+    Signaling(String),
+
     /// The operation was cancelled.
     #[error("operation cancelled")]
     Cancelled,
@@ -109,6 +114,7 @@ impl BeamError {
                 ErrorCategory::Protocol
             }
             Self::Io { category, .. } => *category,
+            Self::Signaling(_) => ErrorCategory::Network,
             Self::Selection(_) | Self::SourceChanged { .. } => ErrorCategory::Storage,
             Self::IntegrityMismatch { .. }
             | Self::Handshake(_)
