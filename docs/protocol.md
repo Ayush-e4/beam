@@ -106,8 +106,28 @@ can't bounce a device's own offer back to it.
 - After recognising a beacon, a device still connects with the Noise handshake for the
   stored public key, so a forged or replayed beacon can waste a connection attempt but
   can't impersonate anyone.
-- **Signaling:** trusted devices can meet in a room derived from their shared secret.
+- **Signaling:** trusted devices can meet in a room derived from their shared secret (see
+  Meeting again).
 - **Direct Wi-Fi:** Wi-Fi Aware publish/subscribe with the same service name.
+
+## Meeting again (trusted devices)
+
+A browser can't be found on the LAN, so it meets a phone it paired with in a signaling room
+only the two can name. Each holds its own key pair and the other's public key, so both compute
+the same X25519 secret (`beam_core::Meeting`):
+
+```
+ikm  = X25519(own private, peer public) | lower public key | higher public key
+room = BLAKE3-derive_key("beam 2026-11-27 meeting room v1", ikm)[..16]
+seal = BLAKE3-derive_key("beam 2026-11-27 meeting seal v1", ikm)
+```
+
+Messages are sealed as in pairing (Sealed signaling messages) under the `seal` key: the phone,
+which serves, seals as the scanner (`from` 1) and the browser as the displayer (`from` 0).
+The phone waits in the rooms of its trusted browsers while Beam is open, or for two minutes
+after the Quick Settings tile is tapped. Whenever a browser is in the room it posts a fresh
+offer (hints and WebTransport certificate hash). The browser connects and runs Noise IK for
+the phone's key; the phone accepts only that browser's key.
 
 ## Signaling rooms
 
