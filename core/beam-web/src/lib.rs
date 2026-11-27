@@ -6,6 +6,7 @@
 
 mod errors;
 mod js_stream;
+mod link;
 pub mod opfs_file;
 pub mod opfs_staging;
 mod pairing;

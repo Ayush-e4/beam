@@ -72,7 +72,14 @@ Shared engine, compiled for Android, the browser (WebAssembly) and later desktop
   serves WebTransport on a free port and returns a `BrowserPairing`. Its `offer(addresses)` is
   the sealed offer to post in its `room`, and `waitForBrowser(name)` returns the
   `PairedDevice` once the browser showing the code connects and pairs. Browsers holding another
-  code are ignored. The paired connection stays open until `stop()` or the object is closed.
+  code are ignored. The paired connection stays open until `stop()` or the object is closed,
+  or until `link()` turns it into a clipboard link.
+- Clipboard (`clip.rs`, `clip_link.rs`): a `ClipLink` runs a link (`beam-core/src/link.rs`)
+  on the engine runtime. `sendText`/`sendImage` return false for an echo of what just
+  arrived; `nextClip()` gives a `ReceivedClip` (body, kind: text/link/code/image, sensitive,
+  the code it holds), then null once the link ended cleanly or the link's error. A link made
+  from a browser pairing keeps its WebTransport server alive and lets no other browser in.
+  `clipKind(text)` and `findCode(text)` label text before sending.
 
 ### beam-web (`core/beam-web`, Rust → WebAssembly)
 
@@ -86,6 +93,11 @@ room. `invite.openOffer(sealed)` opens it into a `PhoneOffer` (`addresses` for
 `https://${address}/beam`, and the `certificateHash` to pin). After the pairing handshake,
 `connection.introduce(name, identity.discoveryKey)` swaps `HELLO`s and returns a
 `PairedPhone` (name, public key, device ID) for the app to remember.
+
+Clipboard (`link.rs`): `connection.link()` turns the connection into a `BeamLink` that runs in
+the background: `sendText`/`sendImage` (false for an echo), `nextClip()` (a `Clip` with
+`kind`, `text` or `mime`/`bytes`, `sensitive` and `code`, then `undefined` once ended) and
+`stop()`. `clipKind(text)` and `findCode(text)` are the same checks as on the phone.
 `js_stream.rs` adapts the stream's `readable`/`writable` into tokio's byte-stream traits, so the
 engine code is unchanged. Errors are `Error`s named `BeamError` with a `category`.
 
