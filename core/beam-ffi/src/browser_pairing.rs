@@ -9,7 +9,7 @@ use std::time::Duration;
 use beam_core::webtransport::{BrowserStream, WebTransportServer};
 use beam_core::{
     Connection, DiscoveryKey, Handshake, Hello, PairingInvite, Role, SignalFrom, SignalMessage,
-    SignalSeal,
+    SignalRoom, SignalSeal,
 };
 use tokio::runtime::Handle;
 use tokio::sync::Mutex;
@@ -18,10 +18,13 @@ use tokio::time::timeout;
 use crate::clip_link::{ClipLink, KeepAlive};
 use crate::pairing::{PairedDevice, hints, introduce};
 use crate::runtime::run;
-use crate::{BeamError, DeviceIdentity};
+use crate::{BeamError, DeviceIdentity, NetworkFailure};
 
 /// How long a browser that connected has to finish pairing before the next one gets a turn.
 const PAIRING_STEP: Duration = Duration::from_secs(20);
+
+/// How long the signaling service has to take the offer.
+const ANNOUNCE_TIME: Duration = Duration::from_secs(15);
 
 /// Serves WebTransport for the browser whose code was scanned, until one browser that holds
 /// that code pairs. Single use. The paired connection stays open until [`Self::stop`] or the
@@ -107,6 +110,29 @@ impl BrowserPairing {
             certificate_hash: self.server.certificate_hash(),
         };
         Ok(SignalSeal::for_invite(&self.invite)?.seal(SignalFrom::Scanner, &offer)?)
+    }
+
+    /// Posts [`Self::offer`] for `addresses` in the code's room on the signaling `service`
+    /// (`wss://…`, or `ws://…` for a local one), where the browser showing the code picks it
+    /// up, now or when it joins.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::offer`], and [`BeamError::Network`] if the service can't be reached, turned
+    /// this device away or didn't answer in time.
+    pub async fn announce(&self, service: String, addresses: Vec<String>) -> Result<(), BeamError> {
+        let offer = self.offer(addresses)?;
+        let room = self.invite.room();
+        run(&self.handle, async move {
+            timeout(ANNOUNCE_TIME, SignalRoom::deliver(&service, &room, offer))
+                .await
+                .map_err(|_| BeamError::Network {
+                    detail: "the signaling service didn't answer".into(),
+                    failure: NetworkFailure::NoAnswer,
+                })??;
+            Ok(())
+        })
+        .await
     }
 
     /// Waits for the browser showing the code to connect and pair, introducing this device as

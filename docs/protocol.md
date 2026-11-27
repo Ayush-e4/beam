@@ -131,7 +131,10 @@ The native client is `beam_core::SignalRoom` (`signal_room.rs`): `join(service, 
 `wss://…` (TLS on ring, Mozilla's roots) or `ws://…` for a local `wrangler dev`, then `post`
 sealed messages and read `next` events (`Joined`, `PeerJoined`, `PeerLeft`, `BufferFull`,
 `Message`). Unknown notices are skipped; the close codes above come back as
-`BeamError::Signaling` saying why, a normal close as the end of the room.
+`BeamError::Signaling` saying why, a normal close as the end of the room. For pairing with a
+browser the phone only needs `SignalRoom::deliver`: join, wait to be let in, post the sealed
+offer and leave. The room keeps it until the browser joins (a reloaded page shows a new code,
+so a new room).
 
 ## Session layer
 

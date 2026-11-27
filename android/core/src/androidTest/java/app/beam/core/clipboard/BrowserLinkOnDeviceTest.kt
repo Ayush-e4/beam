@@ -26,9 +26,10 @@ import org.junit.runner.RunWith
 /**
  * The phone's half of the real clipboard test with Chromium on a Mac over Wi-Fi
  * (`tools/phone-browser-test.sh` runs both). It links with the browser showing the code it
- * is given, logs the offer for the Mac to hand over (standing in for signaling), takes the
- * browser's text and image, then sends the clipboard back through the focus window. Skipped
- * unless run with `-e browserCode BEAM1:…`. The screen must be on and unlocked.
+ * is given, posting its offer in the room on the Mac's signaling service (`-e signaling`,
+ * reached through `adb reverse`), takes the browser's text and image, then sends the
+ * clipboard back through the focus window. Skipped unless run with `-e browserCode BEAM1:…`.
+ * The screen must be on and unlocked.
  */
 @RunWith(AndroidJUnit4::class)
 class BrowserLinkOnDeviceTest {
@@ -37,14 +38,17 @@ class BrowserLinkOnDeviceTest {
 
     @Test
     fun linksWithChromiumOnAMac(): Unit = runBlocking {
-        val code = InstrumentationRegistry.getArguments().getString("browserCode")
+        val arguments = InstrumentationRegistry.getArguments()
+        val code = arguments.getString("browserCode")
         assumeTrue("run by tools/phone-browser-test.sh", code != null)
+        val signaling = arguments.getString("signaling") ?: "ws://127.0.0.1:8787"
         val root = File(context.cacheDir, "browser-link-test").apply { mkdirs() }
         val links = ClipLinks.get(context)
         Engine(DeviceIdentity.generate()).use { engine ->
             val trusted = TrustedDevices(File(root, "trusted-devices.bin"))
-            val pending = BrowserLinking(engine, links, trusted).start(checkNotNull(code))
-            Log.i(TAG, "OFFER ${pending.offer.toHex()}")
+            val linking = BrowserLinking(engine, links, trusted, signaling)
+            val pending = linking.start(checkNotNull(code))
+            Log.i(TAG, "ANNOUNCED")
             val arrivals = async { links.arrivals.take(2).toList() }
             val browser = withTimeout(STEP_MS) { pending.await("Galaxy S21 FE") }
             Log.i(TAG, "LINKED ${browser.name}")
@@ -69,8 +73,6 @@ class BrowserLinkOnDeviceTest {
         }
         root.deleteRecursively()
     }
-
-    private fun ByteArray.toHex() = joinToString("") { "%02x".format(it) }
 
     private companion object {
         const val TAG = "BeamE2E"
