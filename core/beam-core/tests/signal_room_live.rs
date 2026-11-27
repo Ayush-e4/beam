@@ -2,6 +2,9 @@
 //! by `wrangler dev`): two devices meet the way the phone and a browser do. Ignored unless
 //! `BEAM_SIGNAL_URL` is set; `tools/signal-room-test.sh` starts the Worker and runs it.
 
+// Test code: a failed unwrap or expect is how it reports a broken setup.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::time::Duration;
 
 use beam_core::{BeamError, RoomEvent, SignalRoom};
