@@ -71,10 +71,6 @@ jobs:
         with:
           workspaces: core
           key: wasm
-      - name: Join the room service (signal/, under Wrangler) with the signaling client
-        env:
-          WRANGLER_SEND_METRICS: false
-        run: tools/signal-room-test.sh
       - name: Use clang for the C parts (ring, zstd)
         run: |
           echo "CC_wasm32_unknown_unknown=clang" >> "$GITHUB_ENV"
@@ -112,6 +108,10 @@ jobs:
         run: |
           npm ci
           npx playwright-core install --with-deps chromium
+      - name: Join the room service (signal/, under Wrangler) with the signaling client
+        env:
+          WRANGLER_SEND_METRICS: false
+        run: tools/signal-room-test.sh
       - name: Use clang for the C parts (ring, zstd)
         run: |
           echo "CC_wasm32_unknown_unknown=clang" >> "$GITHUB_ENV"
